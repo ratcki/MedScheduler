@@ -28,7 +28,7 @@ A React-based web application for managing medical shift assignments across diff
 ### Prerequisites
 
 - Node.js (v16 or higher)
-- npm or yarn package manager
+- Bun package manager
 
 ### Installation
 
@@ -42,13 +42,13 @@ A React-based web application for managing medical shift assignments across diff
 2. Install dependencies:
 
    ```bash
-   npm install
+   bun install
    ```
 
 3. Start the development server:
 
    ```bash
-   npm run dev
+   bun run dev
    ```
 
 4. Open your browser and navigate to `http://localhost:5173`
@@ -56,13 +56,13 @@ A React-based web application for managing medical shift assignments across diff
 ### Building for Production
 
 ```bash
-npm run build
+bun run build
 ```
 
 ### Linting
 
 ```bash
-npm run lint
+bun run lint
 ```
 
 ## Usage
