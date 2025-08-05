@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Edit2, Check, X, Trash2 } from 'lucide-react';
 import { ShiftColumn } from '@/types/medical';
+import { VALIDATION_LIMITS } from '@/config/calendar';
 
 interface EditableShiftHeaderProps {
   shift: ShiftColumn;
@@ -13,10 +14,22 @@ export function EditableShiftHeader({ shift, onUpdate, onDelete }: EditableShift
   const [editValue, setEditValue] = useState(shift.name);
 
   const handleSave = () => {
-    if (editValue.trim()) {
-      onUpdate(shift.id, editValue.trim());
-      setIsEditing(false);
+    const trimmed = editValue.trim();
+    
+    // Validation rules
+    if (!trimmed || trimmed.length < VALIDATION_LIMITS.MIN_COLUMN_NAME_LENGTH) {
+      return;
     }
+    
+    if (trimmed.length > VALIDATION_LIMITS.MAX_COLUMN_NAME_LENGTH) {
+      return;
+    }
+    
+    // Sanitize input (remove potentially dangerous characters)
+    const sanitized = trimmed.replace(/[<>]/g, '');
+    
+    onUpdate(shift.id, sanitized);
+    setIsEditing(false);
   };
 
   const handleCancel = () => {
@@ -55,9 +68,11 @@ export function EditableShiftHeader({ shift, onUpdate, onDelete }: EditableShift
   }
 
   return (
-    <div className="flex items-center gap-1 group">
-      <span className="text-xs font-medium truncate flex-1">{shift.name}</span>
-      <div className="flex opacity-0 group-hover:opacity-100 transition-opacity">
+    <div className="relative group w-full">
+      <div className="text-center">
+        <span className="text-xs font-medium">{shift.name}</span>
+      </div>
+      <div className="absolute top-0 right-0 flex opacity-0 group-hover:opacity-100 transition-opacity">
         <button
           onClick={() => setIsEditing(true)}
           className="p-1 text-gray-500 hover:text-gray-700"

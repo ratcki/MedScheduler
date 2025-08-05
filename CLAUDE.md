@@ -6,21 +6,26 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ### Essential Commands
 
-- `bun run dev` - Start development server (Vite)
-- `bun run build` - Build for production (TypeScript compilation + Vite build)
-- `bun run lint` - Run ESLint with TypeScript support
+- `bun run dev` - Start both frontend and backend development servers concurrently
+- `bun run dev:frontend` - Start frontend development server (Vite on port 5173)
+- `bun run dev:backend` - Start backend development server (Express on port 3001)
+- `bun run build` - Build frontend for production (TypeScript compilation + Vite build)
+- `bun run start` - Start both frontend and backend production servers
+- `bun run lint` - Run ESLint with TypeScript support on frontend
 - `bun run preview` - Preview production build locally
 
 ### Development Workflow
-- Uses Vite for fast development and hot module replacement
-- TypeScript strict mode enabled for type safety
-- ESLint configured with React and TypeScript rules
+- Uses concurrently to run both frontend (Vite) and backend (Express) servers
+- Frontend: Vite for fast development and hot module replacement on port 5173
+- Backend: Express.js API server with SQLite database on port 3001
+- TypeScript strict mode enabled for frontend type safety
+- ESLint configured with React and TypeScript rules for frontend
 - No test runner currently configured
 
 ## Architecture Overview
 
-### Single-Page Medical Scheduling Application
-This is a React-based medical shift scheduler focused on hospital ward management. The entire application centers around one main component: `ShiftAssignmentTable`.
+### Full-Stack Medical Scheduling Application
+This is a full-stack React + Express.js medical shift scheduler focused on hospital ward management, with a RESTful API backend and SQLite database for data persistence.
 
 ### Core Domain Model
 The application manages three primary entities:
@@ -28,10 +33,17 @@ The application manages three primary entities:
 - **ShiftAssignments**: Date-based assignments linking doctors to specific ward shifts
 - **ShiftColumns**: Configurable hospital wards with custom names and visual styling
 
-### Component Architecture
-- **Monolithic Design**: Single main component (`ShiftAssignmentTable`) handles all scheduling logic
-- **Embedded Sub-components**: `DoctorCard`, `ShiftCell`, and `EditableShiftHeader` are defined within the main file
-- **State Management**: Pure React useState hooks with performance optimizations using useMemo
+### Backend Architecture (Express.js + SQLite)
+- **API Server**: Express.js server running on port 3001 with CORS enabled
+- **Database**: SQLite file-based database (`backend/src/data/medscheduler.db`)
+- **Routes**: RESTful API endpoints for doctors (`/api/doctors`) and shifts (`/api/shifts`)
+- **Models**: JavaScript models for Doctor, ShiftAssignment, and ShiftColumn entities
+- **Services**: Business logic layer for data operations and database interactions
+
+### Frontend Architecture (React + TypeScript)
+- **Component Structure**: Modular React components with custom hooks for data fetching
+- **API Integration**: HTTP client service (`src/services/apiService.ts`) for backend communication
+- **State Management**: React hooks with API-driven state management
 - **UI Components**: Uses shadcn/ui (Card, Table) with Tailwind CSS styling
 
 ### Key Technical Patterns
@@ -51,15 +63,39 @@ const [selectedDoctorId, setSelectedDoctorId] = useState<string | null>(); // UI
 ```
 
 ### File Organization
-- **Components**: All in `src/components/` with UI components in `ui/` subdirectory
-- **Utilities**: Single `utils.ts` file with Tailwind class merging helper
-- **Styling**: Global CSS in `index.css`, component-level Tailwind classes
-- **Type Definitions**: Inline TypeScript types within component files
+```
+medscheduler/
+├── backend/
+│   ├── src/
+│   │   ├── config/database.js     # SQLite database configuration
+│   │   ├── controllers/           # Request handlers (future expansion)
+│   │   ├── data/medscheduler.db   # SQLite database file
+│   │   ├── models/                # Data models (Doctor, ShiftAssignment, ShiftColumn)
+│   │   ├── routes/                # API route definitions (doctors.js, shifts.js)
+│   │   ├── services/              # Business logic layer (doctorService.js, shiftService.js)
+│   │   └── server.js              # Express server setup and configuration
+│   └── package.json               # Backend dependencies
+├── frontend/
+│   ├── src/
+│   │   ├── components/            # React components
+│   │   │   ├── ui/                # shadcn/ui components
+│   │   │   └── ShiftAssignmentTable.tsx, DoctorCard.tsx, etc.
+│   │   ├── hooks/                 # Custom React hooks (useDoctors.ts, useShiftAssignments.ts)
+│   │   ├── services/apiService.ts # HTTP client for API communication
+│   │   ├── types/medical.ts       # Centralized TypeScript type definitions
+│   │   └── utils/                 # Utility functions
+│   ├── package.json               # Frontend dependencies
+│   ├── vite.config.ts            # Vite configuration
+│   └── tailwind.config.js        # Tailwind CSS configuration
+└── package.json                   # Root workspace configuration
+```
 
 ### Build Configuration
+- **Frontend**: Vite build system with TypeScript and React
+- **Backend**: Node.js with Express.js and SQLite3
 - **Path Alias**: `@/` maps to `src/` directory for clean imports
-- **Development**: Hot reload with polling enabled for file watching
-- **Production**: TypeScript compilation followed by Vite optimization
+- **Development**: Concurrently runs both servers with hot reload
+- **Production**: Frontend builds to `dist/`, served statically by Express
 
 ## Medical Domain Context
 
