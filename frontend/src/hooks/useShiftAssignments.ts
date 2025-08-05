@@ -20,6 +20,11 @@ export function useShiftAssignments(doctors: Doctor[]) {
   const [draggedAssignment, setDraggedAssignment] = useState<{date: number, shiftId: string, doctor: Doctor} | null>(null);
   const [showSwapDialog, setShowSwapDialog] = useState(false);
   const [pendingSwap, setPendingSwap] = useState<{from: {date: number, shiftId: string, doctor: Doctor}, to: {date: number, shiftId: string, doctor?: Doctor}} | null>(null);
+  const [showDeleteAssignmentDialog, setShowDeleteAssignmentDialog] = useState(false);
+  const [showEditAssignmentDialog, setShowEditAssignmentDialog] = useState(false);
+  const [assignmentToEdit, setAssignmentToEdit] = useState<{date: number, shiftId: string, doctor: Doctor} | null>(null);
+  const [showAddAssignmentDialog, setShowAddAssignmentDialog] = useState(false);
+  const [assignmentToAdd, setAssignmentToAdd] = useState<{date: number, shiftId: string} | null>(null);
 
   // Load assignments from backend
   useEffect(() => {
@@ -242,6 +247,124 @@ export function useShiftAssignments(doctors: Doctor[]) {
     setPendingSwap(null);
   };
 
+  // Edit and Delete Assignment handlers
+  const handleEditAssignment = (date: number, shiftId: string) => {
+    const doctor = getAssignedDoctor(date, shiftId);
+    if (doctor) {
+      setAssignmentToEdit({ date, shiftId, doctor });
+      setShowEditAssignmentDialog(true);
+    }
+  };
+
+  const handleDeleteAssignment = (date: number, shiftId: string) => {
+    const doctor = getAssignedDoctor(date, shiftId);
+    if (doctor) {
+      setAssignmentToEdit({ date, shiftId, doctor });
+      setShowDeleteAssignmentDialog(true);
+    }
+  };
+
+  const handleConfirmEditAssignment = async (newDoctorId: string) => {
+    if (assignmentToEdit) {
+      try {
+        // Delete old assignment
+        await deleteShiftAssignment(assignmentToEdit.date, assignmentToEdit.shiftId);
+        
+        // Create new assignment with new doctor
+        await createShiftAssignment({ 
+          date: assignmentToEdit.date, 
+          shiftId: assignmentToEdit.shiftId, 
+          doctorId: newDoctorId 
+        });
+        
+        // Update local state
+        setAssignments(prev => {
+          const filteredAssignments = prev.filter(a => 
+            !(a.date === assignmentToEdit.date && a.shiftId === assignmentToEdit.shiftId)
+          );
+          return [...filteredAssignments, { 
+            date: assignmentToEdit.date, 
+            shiftId: assignmentToEdit.shiftId, 
+            doctorId: newDoctorId 
+          }];
+        });
+      } catch (err: any) {
+        setError(err.message);
+        console.error('Failed to edit assignment:', err);
+      }
+    }
+    setShowEditAssignmentDialog(false);
+    setAssignmentToEdit(null);
+  };
+
+  const handleCancelEditAssignment = () => {
+    setShowEditAssignmentDialog(false);
+    setAssignmentToEdit(null);
+  };
+
+  const handleConfirmDeleteAssignment = async () => {
+    if (assignmentToEdit) {
+      try {
+        await deleteShiftAssignment(assignmentToEdit.date, assignmentToEdit.shiftId);
+        
+        // Update local state
+        setAssignments(prev => prev.filter(a => 
+          !(a.date === assignmentToEdit.date && a.shiftId === assignmentToEdit.shiftId)
+        ));
+      } catch (err: any) {
+        setError(err.message);
+        console.error('Failed to delete assignment:', err);
+      }
+    }
+    setShowDeleteAssignmentDialog(false);
+    setAssignmentToEdit(null);
+  };
+
+  const handleCancelDeleteAssignment = () => {
+    setShowDeleteAssignmentDialog(false);
+    setAssignmentToEdit(null);
+  };
+
+  // Add Assignment handlers
+  const handleAddAssignment = (date: number, shiftId: string) => {
+    // Only allow adding if no doctor is currently selected for the sidebar flow
+    // and if there's no existing assignment
+    const existingDoctor = getAssignedDoctor(date, shiftId);
+    if (!existingDoctor && !selectedDoctorId) {
+      setAssignmentToAdd({ date, shiftId });
+      setShowAddAssignmentDialog(true);
+    }
+  };
+
+  const handleConfirmAddAssignment = async (doctorId: string) => {
+    if (assignmentToAdd) {
+      try {
+        await createShiftAssignment({ 
+          date: assignmentToAdd.date, 
+          shiftId: assignmentToAdd.shiftId, 
+          doctorId 
+        });
+        
+        // Update local state
+        setAssignments(prev => [...prev, { 
+          date: assignmentToAdd.date, 
+          shiftId: assignmentToAdd.shiftId, 
+          doctorId 
+        }]);
+      } catch (err: any) {
+        setError(err.message);
+        console.error('Failed to add assignment:', err);
+      }
+    }
+    setShowAddAssignmentDialog(false);
+    setAssignmentToAdd(null);
+  };
+
+  const handleCancelAddAssignment = () => {
+    setShowAddAssignmentDialog(false);
+    setAssignmentToAdd(null);
+  };
+
   return {
     assignments,
     loading,
@@ -252,6 +375,11 @@ export function useShiftAssignments(doctors: Doctor[]) {
     draggedAssignment,
     showSwapDialog,
     pendingSwap,
+    showDeleteAssignmentDialog,
+    showEditAssignmentDialog,
+    assignmentToEdit,
+    showAddAssignmentDialog,
+    assignmentToAdd,
     getDoctorShiftCount,
     getAssignedDoctor,
     handleDoctorSelect,
@@ -263,6 +391,15 @@ export function useShiftAssignments(doctors: Doctor[]) {
     handleDrop,
     handleConfirmSwap,
     handleCancelSwap,
+    handleEditAssignment,
+    handleDeleteAssignment,
+    handleConfirmEditAssignment,
+    handleCancelEditAssignment,
+    handleConfirmDeleteAssignment,
+    handleCancelDeleteAssignment,
+    handleAddAssignment,
+    handleConfirmAddAssignment,
+    handleCancelAddAssignment,
     setSelectedDoctorId,
     setAssignments,
     loadAssignments

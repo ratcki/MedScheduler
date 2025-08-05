@@ -15,6 +15,9 @@ import { EditableShiftHeader } from '@/components/EditableShiftHeader';
 import { ReplaceAssignmentDialog } from '@/components/ReplaceAssignmentDialog';
 import { DeleteColumnDialog } from '@/components/DeleteColumnDialog';
 import { SwapAssignmentDialog } from '@/components/SwapAssignmentDialog';
+import { DeleteAssignmentDialog } from '@/components/DeleteAssignmentDialog';
+import { EditAssignmentDialog } from '@/components/EditAssignmentDialog';
+import { AddAssignmentDialog } from '@/components/AddAssignmentDialog';
 import { useShiftAssignments, useShiftColumns } from '@/hooks/useShiftAssignments';
 import { useDoctorSearch } from '@/hooks/useDoctorSearch';
 import { useDoctors } from '@/hooks/useDoctors';
@@ -50,6 +53,11 @@ export function ShiftAssignmentTable() {
     draggedAssignment,
     showSwapDialog,
     pendingSwap,
+    showDeleteAssignmentDialog,
+    showEditAssignmentDialog,
+    assignmentToEdit,
+    showAddAssignmentDialog,
+    assignmentToAdd,
     getDoctorShiftCount,
     getAssignedDoctor,
     handleDoctorSelect,
@@ -61,6 +69,15 @@ export function ShiftAssignmentTable() {
     handleDrop,
     handleConfirmSwap,
     handleCancelSwap,
+    handleEditAssignment,
+    handleDeleteAssignment,
+    handleConfirmEditAssignment,
+    handleCancelEditAssignment,
+    handleConfirmDeleteAssignment,
+    handleCancelDeleteAssignment,
+    handleAddAssignment,
+    handleConfirmAddAssignment,
+    handleCancelAddAssignment,
     setSelectedDoctorId,
     loadAssignments
   } = useShiftAssignments(doctors);
@@ -178,6 +195,9 @@ export function ShiftAssignmentTable() {
                             onDragStart={handleDragStart}
                             onDragEnd={handleDragEnd}
                             onDrop={handleDrop}
+                            onEditAssignment={handleEditAssignment}
+                            onDeleteAssignment={handleDeleteAssignment}
+                            onAddAssignment={handleAddAssignment}
                           />
                         ))}
                         <TableCell className="min-w-[100px]"></TableCell>
@@ -273,6 +293,29 @@ export function ShiftAssignmentTable() {
         pendingSwap={pendingSwap}
         onConfirm={handleConfirmSwap}
         onCancel={handleCancelSwap}
+      />
+
+      <DeleteAssignmentDialog
+        isOpen={showDeleteAssignmentDialog}
+        assignment={assignmentToEdit}
+        onConfirm={handleConfirmDeleteAssignment}
+        onCancel={handleCancelDeleteAssignment}
+      />
+
+      <EditAssignmentDialog
+        isOpen={showEditAssignmentDialog}
+        assignment={assignmentToEdit}
+        doctors={doctors}
+        onConfirm={handleConfirmEditAssignment}
+        onCancel={handleCancelEditAssignment}
+      />
+
+      <AddAssignmentDialog
+        isOpen={showAddAssignmentDialog}
+        assignment={assignmentToAdd}
+        doctors={doctors}
+        onConfirm={handleConfirmAddAssignment}
+        onCancel={handleCancelAddAssignment}
       />
     </div>
   );
