@@ -6,7 +6,7 @@ export function useCalendar(month: number, year: number) {
   const daysInMonth = useMemo(() => getDaysInMonth(month, year), [month, year]);
   
   const isHoliday = useCallback((date: number) => 
-    CALENDAR_CONFIG.HOLIDAYS.includes(date), []
+    (CALENDAR_CONFIG.HOLIDAYS as unknown as number[]).includes(date), []
   );
   
   const isWeekendDay = useCallback((date: number) => 

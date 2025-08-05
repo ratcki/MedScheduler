@@ -14,6 +14,7 @@ import { ShiftCell } from '@/components/ShiftCell';
 import { EditableShiftHeader } from '@/components/EditableShiftHeader';
 import { ReplaceAssignmentDialog } from '@/components/ReplaceAssignmentDialog';
 import { DeleteColumnDialog } from '@/components/DeleteColumnDialog';
+import { SwapAssignmentDialog } from '@/components/SwapAssignmentDialog';
 import { useShiftAssignments, useShiftColumns } from '@/hooks/useShiftAssignments';
 import { useDoctorSearch } from '@/hooks/useDoctorSearch';
 import { useDoctors } from '@/hooks/useDoctors';
@@ -41,18 +42,25 @@ export function ShiftAssignmentTable() {
   } = useShiftColumns([]);
 
   const {
-    assignments,
     loading: assignmentsLoading,
     error: assignmentsError,
     selectedDoctorId,
     showConfirmDialog,
     pendingAssignment,
+    draggedAssignment,
+    showSwapDialog,
+    pendingSwap,
     getDoctorShiftCount,
     getAssignedDoctor,
     handleDoctorSelect,
     handleCellClick,
     handleConfirmReplacement,
     handleCancelReplacement,
+    handleDragStart,
+    handleDragEnd,
+    handleDrop,
+    handleConfirmSwap,
+    handleCancelSwap,
     setSelectedDoctorId,
     loadAssignments
   } = useShiftAssignments(doctors);
@@ -165,7 +173,11 @@ export function ShiftAssignmentTable() {
                             shiftColor={shift.color}
                             assignedDoctor={getAssignedDoctor(date, shift.id)}
                             selectedDoctorId={selectedDoctorId}
+                            draggedAssignment={draggedAssignment}
                             onCellClick={handleCellClick}
+                            onDragStart={handleDragStart}
+                            onDragEnd={handleDragEnd}
+                            onDrop={handleDrop}
                           />
                         ))}
                         <TableCell className="min-w-[100px]"></TableCell>
@@ -254,6 +266,13 @@ export function ShiftAssignmentTable() {
         isOpen={showDeleteColumnDialog}
         onConfirm={handleConfirmDeleteColumn}
         onCancel={handleCancelDeleteColumn}
+      />
+
+      <SwapAssignmentDialog
+        isOpen={showSwapDialog}
+        pendingSwap={pendingSwap}
+        onConfirm={handleConfirmSwap}
+        onCancel={handleCancelSwap}
       />
     </div>
   );
