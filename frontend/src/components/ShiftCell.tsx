@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import { User } from 'lucide-react';
 import { TableCell } from '@/components/ui/table';
 import { Doctor } from '@/types/medical';
@@ -11,7 +12,7 @@ interface ShiftCellProps {
   onCellClick: (date: number, shiftId: string) => void;
 }
 
-export function ShiftCell({ 
+export const ShiftCell = memo(function ShiftCell({ 
   date, 
   shiftId, 
   shiftColor, 
@@ -25,11 +26,22 @@ export function ShiftCell({
     }
   };
 
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      handleCellClick();
+    }
+  };
+
   return (
-    <TableCell className={`min-w-[150px] h-16 p-1 border ${shiftColor}`}>
+    <TableCell className={`min-w-[150px] h-10 p-1 border ${shiftColor}`}>
       <div
         onClick={handleCellClick}
-        className={`w-full h-full rounded flex items-center justify-center text-xs cursor-pointer transition-all ${
+        onKeyDown={handleKeyDown}
+        tabIndex={selectedDoctorId ? 0 : -1}
+        role="button"
+        aria-label={assignedDoctor ? `Assigned to ${assignedDoctor.name}` : 'Empty shift slot'}
+        className={`w-full h-full rounded flex items-center justify-center text-xs cursor-pointer transition-all focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50 ${
           assignedDoctor
             ? 'bg-white border border-gray-200'
             : selectedDoctorId
@@ -38,24 +50,20 @@ export function ShiftCell({
         }`}
       >
         {assignedDoctor ? (
-          <div className="text-center p-1">
-            <div className="font-medium truncate text-xs">{assignedDoctor.name}</div>
-            <div className="text-gray-500 truncate text-xs">{assignedDoctor.role}</div>
-            {assignedDoctor.subspecialty && (
-              <div className="text-gray-400 truncate text-xs">{assignedDoctor.subspecialty}</div>
-            )}
+          <div className="text-center p-0.5">
+            <div className="font-medium truncate text-xs leading-tight">{assignedDoctor.name}</div>
           </div>
         ) : selectedDoctorId ? (
           <div className="text-center">
-            <User size={16} />
-            <div>Click to assign</div>
+            <User size={12} />
+            <div className="text-xs">Assign</div>
           </div>
         ) : (
-          <div className="text-center text-gray-400">
+          <div className="text-center text-gray-400 text-lg">
             +
           </div>
         )}
       </div>
     </TableCell>
   );
-}
+});

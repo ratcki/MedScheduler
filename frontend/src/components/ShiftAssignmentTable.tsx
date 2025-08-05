@@ -12,19 +12,24 @@ import { Plus, Stethoscope, Search, X } from 'lucide-react';
 import { DoctorCard } from '@/components/DoctorCard';
 import { ShiftCell } from '@/components/ShiftCell';
 import { EditableShiftHeader } from '@/components/EditableShiftHeader';
-import { ConfirmationDialog } from '@/components/ConfirmationDialog';
+import { ReplaceAssignmentDialog } from '@/components/ReplaceAssignmentDialog';
+import { DeleteColumnDialog } from '@/components/DeleteColumnDialog';
 import { useShiftAssignments, useShiftColumns } from '@/hooks/useShiftAssignments';
 import { useDoctorSearch } from '@/hooks/useDoctorSearch';
 import { useDoctors } from '@/hooks/useDoctors';
-import { getDaysInMonth, getMonthName, isWeekend } from '@/utils/dateUtils';
-import { holidays } from '@/data/initialData';
+import { useCalendar } from '@/hooks/useCalendar';
+import { getMonthName } from '@/utils/dateUtils';
+import { CALENDAR_CONFIG } from '@/config/calendar';
 
 export function ShiftAssignmentTable() {
   const { doctors, loading, error } = useDoctors();
+  const [showDeleteColumnDialog, setShowDeleteColumnDialog] = useState(false);
+  const [columnToDelete, setColumnToDelete] = useState<string | null>(null);
   
-  const currentMonth = 1; // January
-  const currentYear = 2025;
-  const daysInMonth = getDaysInMonth(currentMonth, currentYear);
+  const { calendarDays, isHoliday, isWeekendDay } = useCalendar(
+    CALENDAR_CONFIG.CURRENT_MONTH,
+    CALENDAR_CONFIG.CURRENT_YEAR
+  );
 
   const {
     shiftColumns,
@@ -62,6 +67,24 @@ export function ShiftAssignmentTable() {
     await handleDeleteShiftColumn(id, loadAssignments);
   };
 
+  const handleDeleteColumnRequest = (id: string) => {
+    setColumnToDelete(id);
+    setShowDeleteColumnDialog(true);
+  };
+
+  const handleConfirmDeleteColumn = async () => {
+    if (columnToDelete) {
+      await handleDeleteShiftColumnWithAssignments(columnToDelete);
+      setShowDeleteColumnDialog(false);
+      setColumnToDelete(null);
+    }
+  };
+
+  const handleCancelDeleteColumn = () => {
+    setShowDeleteColumnDialog(false);
+    setColumnToDelete(null);
+  };
+
   if (loading || columnsLoading || assignmentsLoading) {
     return (
       <div className="p-6 max-w-full mx-auto">
@@ -91,26 +114,26 @@ export function ShiftAssignmentTable() {
       <div className="grid grid-cols-1 xl:grid-cols-4 gap-6 items-start">
         <Card className="xl:col-span-3">
           <CardHeader>
-            <CardTitle>{getMonthName(currentMonth)} {currentYear}</CardTitle>
+            <CardTitle>{getMonthName(CALENDAR_CONFIG.CURRENT_MONTH)} {CALENDAR_CONFIG.CURRENT_YEAR}</CardTitle>
           </CardHeader>
           <CardContent className="p-0">
             <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="sticky left-0 bg-white z-10 border-r-2 border-gray-200 min-w-[80px]">
+                    <TableHead className="sticky left-0 bg-white z-10 border-r-2 border-gray-200 min-w-[80px] text-center">
                       Date
                     </TableHead>
                     {shiftColumns.map((shift) => (
-                      <TableHead key={shift.id} className={`min-w-[150px] ${shift.color}`}>
+                      <TableHead key={shift.id} className={`min-w-[150px] ${shift.color} text-center`}>
                         <EditableShiftHeader
                           shift={shift}
                           onUpdate={handleUpdateShiftColumn}
-                          onDelete={handleDeleteShiftColumnWithAssignments}
+                          onDelete={handleDeleteColumnRequest}
                         />
                       </TableHead>
                     ))}
-                    <TableHead className="min-w-[100px]">
+                    <TableHead className="min-w-[100px] text-center">
                       <button
                         onClick={handleAddShiftColumn}
                         className="flex items-center gap-1 px-2 py-1 text-xs bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors"
@@ -122,27 +145,17 @@ export function ShiftAssignmentTable() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {Array.from({ length: daysInMonth }, (_, i) => i + 1).map((date) => {
-                    const isHoliday = new Set([1, 20]).has(date);
-                    const isWeekendDay = isWeekend(date, currentMonth, currentYear);
+                  {calendarDays.map((date) => {
                     
                     return (
                       <TableRow key={date}>
                         <TableCell 
                           className={`sticky left-0 bg-white z-10 border-r-2 border-gray-200 font-medium text-center ${
-                            isHoliday ? 'bg-red-50 text-red-700' : 
-                            isWeekendDay ? 'bg-gray-50 text-gray-600' : ''
+                            isHoliday(date) ? 'bg-red-50 text-red-700' : 
+                            isWeekendDay(date) ? 'bg-gray-50 text-gray-600' : ''
                           }`}
                         >
-                          <div className="flex flex-col items-center">
-                            <span className={`text-lg ${isHoliday ? 'font-bold' : ''}`}>{date}</span>
-                            {isHoliday && <span className="text-xs">Holiday</span>}
-                            {isWeekendDay && !isHoliday && (
-                              <span className="text-xs">
-                                {new Date(currentYear, currentMonth - 1, date).getDay() === 0 ? 'Sun' : 'Sat'}
-                              </span>
-                            )}
-                          </div>
+                          <span className={`text-lg ${isHoliday(date) ? 'font-bold' : ''}`}>{date}</span>
                         </TableCell>
                         {shiftColumns.map((shift) => (
                           <ShiftCell
@@ -229,12 +242,18 @@ export function ShiftAssignmentTable() {
         </Card>
       </div>
 
-      <ConfirmationDialog
+      <ReplaceAssignmentDialog
         isOpen={showConfirmDialog}
         pendingAssignment={pendingAssignment}
         selectedDoctor={doctors.find(d => d.id === selectedDoctorId)}
         onConfirm={handleConfirmReplacement}
         onCancel={handleCancelReplacement}
+      />
+
+      <DeleteColumnDialog
+        isOpen={showDeleteColumnDialog}
+        onConfirm={handleConfirmDeleteColumn}
+        onCancel={handleCancelDeleteColumn}
       />
     </div>
   );
