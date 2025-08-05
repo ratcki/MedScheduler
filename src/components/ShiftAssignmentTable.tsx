@@ -15,12 +15,12 @@ import { EditableShiftHeader } from '@/components/EditableShiftHeader';
 import { ConfirmationDialog } from '@/components/ConfirmationDialog';
 import { useShiftAssignments, useShiftColumns } from '@/hooks/useShiftAssignments';
 import { useDoctorSearch } from '@/hooks/useDoctorSearch';
+import { useDoctors } from '@/hooks/useDoctors';
 import { getDaysInMonth, getMonthName, isWeekend } from '@/utils/dateUtils';
-import { initialDoctors, initialShiftColumns, holidays } from '@/data/initialData';
-
+import { holidays } from '@/data/initialData';
 
 export function ShiftAssignmentTable() {
-  const [doctors] = useState(initialDoctors);
+  const { doctors, loading, error } = useDoctors();
   
   const currentMonth = 1; // January
   const currentYear = 2025;
@@ -28,12 +28,17 @@ export function ShiftAssignmentTable() {
 
   const {
     shiftColumns,
+    loading: columnsLoading,
+    error: columnsError,
     handleUpdateShiftColumn,
     handleDeleteShiftColumn,
     handleAddShiftColumn
-  } = useShiftColumns(initialShiftColumns);
+  } = useShiftColumns([]);
 
   const {
+    assignments,
+    loading: assignmentsLoading,
+    error: assignmentsError,
     selectedDoctorId,
     showConfirmDialog,
     pendingAssignment,
@@ -44,7 +49,7 @@ export function ShiftAssignmentTable() {
     handleConfirmReplacement,
     handleCancelReplacement,
     setSelectedDoctorId,
-    setAssignments
+    loadAssignments
   } = useShiftAssignments(doctors);
 
   const {
@@ -53,9 +58,29 @@ export function ShiftAssignmentTable() {
     filteredDoctors
   } = useDoctorSearch(doctors);
 
-  const handleDeleteShiftColumnWithAssignments = (id: string) => {
-    handleDeleteShiftColumn(id, setAssignments);
+  const handleDeleteShiftColumnWithAssignments = async (id: string) => {
+    await handleDeleteShiftColumn(id, loadAssignments);
   };
+
+  if (loading || columnsLoading || assignmentsLoading) {
+    return (
+      <div className="p-6 max-w-full mx-auto">
+        <div className="flex justify-center items-center h-64">
+          <div className="text-lg">Loading...</div>
+        </div>
+      </div>
+    );
+  }
+
+  if (error || columnsError || assignmentsError) {
+    return (
+      <div className="p-6 max-w-full mx-auto">
+        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
+          <strong>Error:</strong> {error || columnsError || assignmentsError}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="p-6 max-w-full mx-auto">
@@ -98,7 +123,7 @@ export function ShiftAssignmentTable() {
                 </TableHeader>
                 <TableBody>
                   {Array.from({ length: daysInMonth }, (_, i) => i + 1).map((date) => {
-                    const isHoliday = holidays.has(date);
+                    const isHoliday = new Set([1, 20]).has(date);
                     const isWeekendDay = isWeekend(date, currentMonth, currentYear);
                     
                     return (

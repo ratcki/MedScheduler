@@ -1,12 +1,41 @@
-import { useState, useMemo, Dispatch, SetStateAction } from 'react';
-import { Doctor, ShiftAssignment, ShiftColumn, PendingAssignment } from '@/types/medical';
-import { shiftColors } from '@/data/initialData';
+import { useState, useEffect, useMemo, Dispatch, SetStateAction } from 'react';
+import { Doctor, ShiftAssignment, ShiftColumn } from '@/types/medical';
+import { 
+  fetchShiftAssignments, 
+  createShiftAssignment, 
+  deleteShiftAssignment,
+  fetchShiftColumns,
+  createShiftColumn,
+  updateShiftColumn,
+  deleteShiftColumn
+} from '@/services/apiService';
 
 export function useShiftAssignments(doctors: Doctor[]) {
   const [assignments, setAssignments] = useState<ShiftAssignment[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
   const [selectedDoctorId, setSelectedDoctorId] = useState<string | null>(null);
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
-  const [pendingAssignment, setPendingAssignment] = useState<PendingAssignment | null>(null);
+  const [pendingAssignment, setPendingAssignment] = useState<any | null>(null);
+
+  // Load assignments from backend
+  useEffect(() => {
+    loadAssignments();
+  }, []);
+
+  const loadAssignments = async () => {
+    try {
+      setLoading(true);
+      const data = await fetchShiftAssignments();
+      setAssignments(data);
+      setError(null);
+    } catch (err: any) {
+      setError(err.message);
+      console.error('Failed to load assignments:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   // Memoized doctor shift counts for performance
   const doctorShiftCounts = useMemo(() => {
@@ -43,13 +72,23 @@ export function useShiftAssignments(doctors: Doctor[]) {
     setSelectedDoctorId(newSelectedId);
   };
 
-  const assignDoctor = (date: number, shiftId: string) => {
+  const assignDoctor = async (date: number, shiftId: string) => {
     if (!selectedDoctorId) return;
 
-    setAssignments(prev => {
-      const filteredAssignments = prev.filter(a => !(a.date === date && a.shiftId === shiftId));
-      return [...filteredAssignments, { date, shiftId, doctorId: selectedDoctorId }];
-    });
+    try {
+      // Create or update assignment in backend
+      const assignment = { date, shiftId, doctorId: selectedDoctorId };
+      await createShiftAssignment(assignment);
+      
+      // Update local state
+      setAssignments(prev => {
+        const filteredAssignments = prev.filter(a => !(a.date === date && a.shiftId === shiftId));
+        return [...filteredAssignments, { date, shiftId, doctorId: selectedDoctorId }];
+      });
+    } catch (err: any) {
+      setError(err.message);
+      console.error('Failed to assign doctor:', err);
+    }
   };
 
   const handleCellClick = (date: number, shiftId: string) => {
@@ -65,9 +104,9 @@ export function useShiftAssignments(doctors: Doctor[]) {
     }
   };
 
-  const handleConfirmReplacement = () => {
+  const handleConfirmReplacement = async () => {
     if (pendingAssignment) {
-      assignDoctor(pendingAssignment.date, pendingAssignment.shiftId);
+      await assignDoctor(pendingAssignment.date, pendingAssignment.shiftId);
     }
     setShowConfirmDialog(false);
     setPendingAssignment(null);
@@ -80,6 +119,8 @@ export function useShiftAssignments(doctors: Doctor[]) {
 
   return {
     assignments,
+    loading,
+    error,
     selectedDoctorId,
     showConfirmDialog,
     pendingAssignment,
@@ -90,47 +131,101 @@ export function useShiftAssignments(doctors: Doctor[]) {
     handleConfirmReplacement,
     handleCancelReplacement,
     setSelectedDoctorId,
-    setAssignments
+    setAssignments,
+    loadAssignments
   };
 }
 
 export function useShiftColumns(initialColumns: ShiftColumn[]) {
   const [shiftColumns, setShiftColumns] = useState<ShiftColumn[]>(initialColumns);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const handleUpdateShiftColumn = (id: string, newName: string) => {
+  // Load shift columns from backend
+  useEffect(() => {
+    loadShiftColumns();
+  }, []);
+
+  const loadShiftColumns = async () => {
+    try {
+      setLoading(true);
+      const data = await fetchShiftColumns();
+      setShiftColumns(data);
+      setError(null);
+    } catch (err: any) {
+      setError(err.message);
+      console.error('Failed to load shift columns:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleUpdateShiftColumn = async (id: string, newName: string) => {
     const trimmedName = newName.trim();
     if (!trimmedName || trimmedName.length > 50) {
       return;
     }
     
-    setShiftColumns(prev => 
-      prev.map(col => col.id === id ? { ...col, name: trimmedName } : col)
-    );
+    try {
+      const column = shiftColumns.find(c => c.id === id);
+      if (column) {
+        const updatedColumn = { ...column, name: trimmedName };
+        await updateShiftColumn(id, updatedColumn);
+        
+        setShiftColumns(prev => 
+          prev.map(col => col.id === id ? updatedColumn : col)
+        );
+      }
+    } catch (err: any) {
+      setError(err.message);
+      console.error('Failed to update shift column:', err);
+    }
   };
 
-  const handleDeleteShiftColumn = (id: string, setAssignments: Dispatch<SetStateAction<ShiftAssignment[]>>) => {
+  const handleDeleteShiftColumn = async (id: string, setAssignments: Dispatch<SetStateAction<ShiftAssignment[]>>) => {
     if (shiftColumns.length <= 1) {
       return;
     }
     
-    setAssignments(prev => prev.filter(assignment => assignment.shiftId !== id));
-    setShiftColumns(prev => prev.filter(col => col.id !== id));
+    try {
+      await deleteShiftColumn(id);
+      
+      setAssignments(prev => prev.filter(assignment => assignment.shiftId !== id));
+      setShiftColumns(prev => prev.filter(col => col.id !== id));
+    } catch (err: any) {
+      setError(err.message);
+      console.error('Failed to delete shift column:', err);
+    }
   };
 
-  const handleAddShiftColumn = () => {
+  const handleAddShiftColumn = async () => {
+    const shiftColors = [
+      'bg-orange-50 border-orange-200',
+      'bg-purple-50 border-purple-200',
+      'bg-yellow-50 border-yellow-200',
+      'bg-indigo-50 border-indigo-200',
+    ];
+    
     const newId = `shift-${Date.now()}`;
     const color = shiftColors[shiftColumns.length % shiftColors.length];
+    const newColumn = { id: newId, name: `New Shift ${shiftColumns.length + 1}`, color };
     
-    setShiftColumns(prev => [
-      ...prev,
-      { id: newId, name: `New Shift ${prev.length + 1}`, color }
-    ]);
+    try {
+      const createdColumn = await createShiftColumn(newColumn);
+      setShiftColumns(prev => [...prev, createdColumn]);
+    } catch (err: any) {
+      setError(err.message);
+      console.error('Failed to create shift column:', err);
+    }
   };
 
   return {
     shiftColumns,
+    loading,
+    error,
     handleUpdateShiftColumn,
     handleDeleteShiftColumn,
-    handleAddShiftColumn
+    handleAddShiftColumn,
+    loadShiftColumns
   };
 }
