@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   Table,
@@ -114,7 +114,7 @@ interface ShiftCellProps {
   shiftId: string;
   shiftColor: string;
   assignedDoctor?: Doctor;
-  selectedDoctorId?: string;
+  selectedDoctorId?: string | null;
   onCellClick: (date: number, shiftId: string) => void;
 }
 
@@ -248,6 +248,8 @@ export function ShiftAssignmentTable() {
   const [assignments, setAssignments] = useState<ShiftAssignment[]>([]);
   const [selectedDoctorId, setSelectedDoctorId] = useState<string | null>(null);
   const [doctorSearchTerm, setDoctorSearchTerm] = useState('');
+  const [showConfirmDialog, setShowConfirmDialog] = useState(false);
+  const [pendingAssignment, setPendingAssignment] = useState<{date: number, shiftId: string, existingDoctor: Doctor} | null>(null);
   
   // Current month and year (can be made dynamic)
   const currentMonth = 1; // January
@@ -255,12 +257,27 @@ export function ShiftAssignmentTable() {
   const daysInMonth = getDaysInMonth(currentMonth, currentYear);
 
   const handleUpdateShiftColumn = (id: string, newName: string) => {
+    // Input validation
+    const trimmedName = newName.trim();
+    if (!trimmedName || trimmedName.length > 50) {
+      console.warn('Invalid shift name: must be between 1-50 characters');
+      return;
+    }
+    
     setShiftColumns(prev => 
-      prev.map(col => col.id === id ? { ...col, name: newName } : col)
+      prev.map(col => col.id === id ? { ...col, name: trimmedName } : col)
     );
   };
 
   const handleDeleteShiftColumn = (id: string) => {
+    // Prevent deletion if only one column remains
+    if (shiftColumns.length <= 1) {
+      console.warn('Cannot delete the last shift column');
+      return;
+    }
+    
+    // Remove associated assignments when deleting a shift column
+    setAssignments(prev => prev.filter(assignment => assignment.shiftId !== id));
     setShiftColumns(prev => prev.filter(col => col.id !== id));
   };
 
@@ -280,46 +297,96 @@ export function ShiftAssignmentTable() {
     ]);
   };
 
+  // Memoized doctor shift counts for performance
+  const doctorShiftCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    assignments.forEach(assignment => {
+      counts[assignment.doctorId] = (counts[assignment.doctorId] || 0) + 1;
+    });
+    return counts;
+  }, [assignments]);
+
   // Get doctor shift count
   const getDoctorShiftCount = (doctorId: string): number => {
-    return assignments.filter(assignment => assignment.doctorId === doctorId).length;
+    return doctorShiftCounts[doctorId] || 0;
   };
+
+  // Memoized assignment lookup for performance
+  const assignmentLookup = useMemo(() => {
+    const lookup: Record<string, string> = {};
+    assignments.forEach(assignment => {
+      const key = `${assignment.date}-${assignment.shiftId}`;
+      lookup[key] = assignment.doctorId;
+    });
+    return lookup;
+  }, [assignments]);
 
   // Get assigned doctor for a cell
   const getAssignedDoctor = (date: number, shiftId: string): Doctor | undefined => {
-    const assignment = assignments.find(a => a.date === date && a.shiftId === shiftId);
-    if (!assignment) return undefined;
-    return doctors.find(d => d.id === assignment.doctorId);
+    const key = `${date}-${shiftId}`;
+    const doctorId = assignmentLookup[key];
+    if (!doctorId) return undefined;
+    return doctors.find(d => d.id === doctorId);
   };
 
   // Handle doctor selection from sidebar
   const handleDoctorSelect = (doctorId: string) => {
-    setSelectedDoctorId(selectedDoctorId === doctorId ? null : doctorId);
+    const newSelectedId = selectedDoctorId === doctorId ? null : doctorId;
+    console.log('Doctor selection - doctorId:', doctorId, 'current selectedDoctorId:', selectedDoctorId, 'new selectedDoctorId:', newSelectedId);
+    setSelectedDoctorId(newSelectedId);
   };
 
   // Handle cell click for assignment
   const handleCellClick = (date: number, shiftId: string) => {
     if (!selectedDoctorId) return;
 
+    // Check if cell is already assigned
+    const existingDoctor = getAssignedDoctor(date, shiftId);
+    
+    if (existingDoctor) {
+      // Show confirmation dialog
+      setPendingAssignment({ date, shiftId, existingDoctor });
+      setShowConfirmDialog(true);
+    } else {
+      // Direct assignment for empty cells
+      assignDoctor(date, shiftId);
+    }
+  };
+
+  // Function to actually assign the doctor
+  const assignDoctor = (date: number, shiftId: string) => {
+    if (!selectedDoctorId) return;
+
     setAssignments(prev => {
-      const existingIndex = prev.findIndex(a => a.date === date && a.shiftId === shiftId);
-      const newAssignment = { date, shiftId, doctorId: selectedDoctorId };
-      
-      if (existingIndex >= 0) {
-        const updated = [...prev];
-        updated[existingIndex] = newAssignment;
-        return updated;
-      } else {
-        return [...prev, newAssignment];
-      }
+      // Remove any existing assignment for this date/shift combination
+      const filteredAssignments = prev.filter(a => !(a.date === date && a.shiftId === shiftId));
+      // Add the new assignment
+      return [...filteredAssignments, { date, shiftId, doctorId: selectedDoctorId }];
     });
   };
 
-  // Filter doctors based on search term
-  const filteredDoctors = doctors.filter(doctor =>
-    doctor.name.toLowerCase().includes(doctorSearchTerm.toLowerCase()) ||
-    doctor.role.toLowerCase().includes(doctorSearchTerm.toLowerCase()) ||
-    (doctor.subspecialty && doctor.subspecialty.toLowerCase().includes(doctorSearchTerm.toLowerCase()))
+  // Handle confirm replacement
+  const handleConfirmReplacement = () => {
+    if (pendingAssignment) {
+      assignDoctor(pendingAssignment.date, pendingAssignment.shiftId);
+    }
+    setShowConfirmDialog(false);
+    setPendingAssignment(null);
+  };
+
+  // Handle cancel replacement
+  const handleCancelReplacement = () => {
+    setShowConfirmDialog(false);
+    setPendingAssignment(null);
+  };
+
+  // Memoized filtered doctors for performance
+  const filteredDoctors = useMemo(() => 
+    doctors.filter(doctor =>
+      doctor.name.toLowerCase().includes(doctorSearchTerm.toLowerCase()) ||
+      doctor.role.toLowerCase().includes(doctorSearchTerm.toLowerCase()) ||
+      (doctor.subspecialty && doctor.subspecialty.toLowerCase().includes(doctorSearchTerm.toLowerCase()))
+    ), [doctors, doctorSearchTerm]
   );
 
   return (
@@ -328,64 +395,7 @@ export function ShiftAssignmentTable() {
         <h1 className="text-3xl font-bold">Shift Assignment</h1>
       </div>
       
-      <div className="grid grid-cols-1 xl:grid-cols-4 gap-6">
-        <Card className="xl:col-span-1">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Stethoscope size={20} />
-              Available Doctors
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="mb-4">
-              <div className="relative">
-                <Search size={16} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-                <input
-                  type="text"
-                  placeholder="Search doctors by name, role, or specialty..."
-                  value={doctorSearchTerm}
-                  onChange={(e) => setDoctorSearchTerm(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                />
-                {doctorSearchTerm && (
-                  <button
-                    onClick={() => setDoctorSearchTerm('')}
-                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                  >
-                    <X size={16} />
-                  </button>
-                )}
-              </div>
-            </div>
-            <div className="space-y-2 max-h-96 overflow-y-auto">
-              {filteredDoctors.length > 0 ? (
-                filteredDoctors.map((doctor) => (
-                  <DoctorCard
-                    key={doctor.id}
-                    doctor={doctor}
-                    shiftCount={getDoctorShiftCount(doctor.id)}
-                    isSelected={selectedDoctorId === doctor.id}
-                    onClick={() => handleDoctorSelect(doctor.id)}
-                  />
-                ))
-              ) : (
-                <div className="text-center py-8 text-gray-500">
-                  <Search size={32} className="mx-auto mb-2 text-gray-300" />
-                  <div className="text-sm">No doctors found</div>
-                  <div className="text-xs">Try adjusting your search terms</div>
-                </div>
-              )}
-            </div>
-            {selectedDoctorId && (
-              <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                <div className="text-sm font-medium text-blue-800">
-                  Click on any cell to assign selected doctor
-                </div>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
+      <div className="grid grid-cols-1 xl:grid-cols-4 gap-6 items-start">
         <Card className="xl:col-span-3">
           <CardHeader>
             <CardTitle>{getMonthName(currentMonth)} {currentYear}</CardTitle>
@@ -448,7 +458,7 @@ export function ShiftAssignmentTable() {
                             shiftId={shift.id}
                             shiftColor={shift.color}
                             assignedDoctor={getAssignedDoctor(date, shift.id)}
-                            selectedDoctorId={selectedDoctorId || undefined}
+                            selectedDoctorId={selectedDoctorId}
                             onCellClick={handleCellClick}
                           />
                         ))}
@@ -461,7 +471,97 @@ export function ShiftAssignmentTable() {
             </div>
           </CardContent>
         </Card>
+
+        <Card className="xl:col-span-1 h-full">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Stethoscope size={20} />
+              Available Doctors
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="h-full flex flex-col">
+            {selectedDoctorId && (
+              <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                <div className="text-sm font-medium text-blue-800 mb-2">
+                  Click on any cell to assign selected doctor
+                </div>
+                <button
+                  onClick={() => setSelectedDoctorId(null)}
+                  className="w-full px-3 py-2 text-sm bg-green-600 text-white rounded hover:bg-green-700 transition-colors"
+                >
+                  Done Assigning
+                </button>
+              </div>
+            )}
+            <div className="mb-4">
+              <div className="relative">
+                <Search size={16} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+                <input
+                  type="text"
+                  placeholder="Search doctors by name, role, or specialty..."
+                  value={doctorSearchTerm}
+                  onChange={(e) => setDoctorSearchTerm(e.target.value)}
+                  className="w-full pl-10 pr-4 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+                {doctorSearchTerm && (
+                  <button
+                    onClick={() => setDoctorSearchTerm('')}
+                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  >
+                    <X size={16} />
+                  </button>
+                )}
+              </div>
+            </div>
+            <div className="space-y-2 flex-1">
+              {filteredDoctors.length > 0 ? (
+                filteredDoctors.map((doctor) => (
+                  <DoctorCard
+                    key={doctor.id}
+                    doctor={doctor}
+                    shiftCount={getDoctorShiftCount(doctor.id)}
+                    isSelected={selectedDoctorId === doctor.id}
+                    onClick={() => handleDoctorSelect(doctor.id)}
+                  />
+                ))
+              ) : (
+                <div className="text-center py-8 text-gray-500">
+                  <Search size={32} className="mx-auto mb-2 text-gray-300" />
+                  <div className="text-sm">No doctors found</div>
+                  <div className="text-xs">Try adjusting your search terms</div>
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
       </div>
+
+      {/* Confirmation Dialog */}
+      {showConfirmDialog && pendingAssignment && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+            <h3 className="text-lg font-semibold mb-4">Replace Doctor Assignment?</h3>
+            <p className="text-gray-600 mb-4">
+              This shift is already assigned to <strong>{pendingAssignment.existingDoctor.name}</strong>. 
+              Do you want to replace them with <strong>{doctors.find(d => d.id === selectedDoctorId)?.name}</strong>?
+            </p>
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={handleCancelReplacement}
+                className="px-4 py-2 text-gray-600 border border-gray-300 rounded hover:bg-gray-50 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleConfirmReplacement}
+                className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 transition-colors"
+              >
+                Replace
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
