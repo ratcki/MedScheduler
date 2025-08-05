@@ -1,6 +1,6 @@
 # Medical Shift Scheduler
 
-A React-based web application for managing medical shift assignments across different hospital wards. Built with modern web technologies for efficient staff scheduling and assignment tracking.
+A full-stack web application for managing medical shift assignments across different hospital wards. Built with React frontend and Express.js backend with SQLite database for persistent data storage.
 
 ## Features
 
@@ -13,15 +13,24 @@ A React-based web application for managing medical shift assignments across diff
 - **Search Functionality**: Search doctors by name, role, or subspecialty
 - **Shift Counting**: Real-time tracking of shift assignments per doctor
 - **Dynamic Ward Management**: Add, edit, and delete ward columns
+- **Data Persistence**: SQLite database for reliable data storage
+- **REST API**: RESTful backend API for all data operations
 - **Responsive Design**: Mobile-friendly interface with clean UI
 
 ## Technology Stack
 
-- **Frontend**: React 18 with TypeScript
+### Frontend
+- **Framework**: React 18 with TypeScript
 - **Styling**: Tailwind CSS with shadcn/ui components
 - **Build Tool**: Vite
 - **Icons**: Lucide React
 - **Development**: ESLint for code quality
+
+### Backend
+- **Runtime**: Node.js with Express.js
+- **Database**: SQLite3 for data persistence
+- **API**: RESTful endpoints with CORS support
+- **Development**: Nodemon for auto-restart
 
 ## Getting Started
 
@@ -39,29 +48,56 @@ A React-based web application for managing medical shift assignments across diff
    cd medscheduler
    ```
 
-2. Install dependencies:
+2. Install dependencies for both frontend and backend:
 
    ```bash
+   # Install root dependencies (concurrently)
    bun install
+   
+   # Install frontend dependencies
+   cd frontend && bun install && cd ..
+   
+   # Install backend dependencies
+   cd backend && bun install && cd ..
    ```
 
-3. Start the development server:
+3. Start the development servers:
 
    ```bash
+   # Start both frontend and backend concurrently
    bun run dev
    ```
 
-4. Open your browser and navigate to `http://localhost:5173`
+4. Open your browser and navigate to:
+   - Frontend: `http://localhost:5173`
+   - Backend API: `http://localhost:3001`
 
 ### Building for Production
 
 ```bash
+# Build frontend for production
 bun run build
+
+# Start production servers
+bun run start
 ```
 
-### Linting
+### Development Commands
 
 ```bash
+# Start both frontend and backend in development mode
+bun run dev
+
+# Start only frontend development server
+bun run dev:frontend
+
+# Start only backend development server
+bun run dev:backend
+
+# Build frontend for production
+bun run build
+
+# Run frontend linting
 bun run lint
 ```
 
@@ -95,18 +131,49 @@ bun run lint
 ## Project Structure
 
 ```text
-src/
-├── components/
-│   ├── ui/                     # shadcn/ui components
-│   │   ├── card.tsx
-│   │   └── table.tsx
-│   └── ShiftAssignmentTable.tsx # Main application component
-├── lib/
-│   └── utils.ts               # Utility functions
-├── App.tsx                    # Root component
-├── main.tsx                   # Application entry point
-└── index.css                  # Global styles
+medscheduler/
+├── backend/                   # Express.js API server
+│   ├── src/
+│   │   ├── config/           # Database configuration
+│   │   ├── data/             # SQLite database file
+│   │   ├── models/           # Data models
+│   │   ├── routes/           # API route definitions
+│   │   ├── services/         # Business logic layer
+│   │   └── server.js         # Express server setup
+│   └── package.json          # Backend dependencies
+├── frontend/                 # React frontend
+│   ├── src/
+│   │   ├── components/       # React components
+│   │   │   ├── ui/           # shadcn/ui components
+│   │   │   └── ShiftAssignmentTable.tsx, etc.
+│   │   ├── hooks/            # Custom React hooks
+│   │   ├── services/         # API service layer
+│   │   ├── types/            # TypeScript type definitions
+│   │   └── utils/            # Utility functions
+│   ├── package.json          # Frontend dependencies
+│   ├── vite.config.ts        # Vite configuration
+│   └── tailwind.config.js    # Tailwind CSS configuration
+└── package.json              # Root workspace configuration
 ```
+
+## API Endpoints
+
+The backend provides RESTful API endpoints for managing doctors and shift assignments:
+
+### Doctor Management
+- `GET /api/doctors` - Get all doctors
+- `POST /api/doctors` - Create a new doctor
+- `PUT /api/doctors/:id` - Update doctor information
+- `DELETE /api/doctors/:id` - Delete a doctor
+
+### Shift Management
+- `GET /api/shifts` - Get all shift assignments
+- `POST /api/shifts` - Create a shift assignment
+- `PUT /api/shifts/:id` - Update shift assignment
+- `DELETE /api/shifts/:id` - Delete shift assignment
+
+### Health Check
+- `GET /api/health` - API health status
 
 ## Data Models
 
@@ -125,6 +192,7 @@ type Doctor = {
 
 ```typescript
 type ShiftAssignment = {
+  id: string;
   date: number;
   shiftId: string;
   doctorId: string;
