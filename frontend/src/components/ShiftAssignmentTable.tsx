@@ -8,7 +8,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { Plus, Stethoscope, Search, X } from 'lucide-react';
+import { Plus, Stethoscope, Search, X, UserPlus, Edit2, Trash2 } from 'lucide-react';
 import { DoctorCard } from '@/components/DoctorCard';
 import { ShiftCell } from '@/components/ShiftCell';
 import { EditableShiftHeader } from '@/components/EditableShiftHeader';
@@ -18,6 +18,9 @@ import { SwapAssignmentDialog } from '@/components/SwapAssignmentDialog';
 import { DeleteAssignmentDialog } from '@/components/DeleteAssignmentDialog';
 import { EditAssignmentDialog } from '@/components/EditAssignmentDialog';
 import { AddAssignmentDialog } from '@/components/AddAssignmentDialog';
+import { AddDoctorDialog } from '@/components/AddDoctorDialog';
+import { EditDoctorDialog } from '@/components/EditDoctorDialog';
+import { DeleteDoctorDialog } from '@/components/DeleteDoctorDialog';
 import { useShiftAssignments, useShiftColumns } from '@/hooks/useShiftAssignments';
 import { useDoctorSearch } from '@/hooks/useDoctorSearch';
 import { useDoctors } from '@/hooks/useDoctors';
@@ -26,9 +29,23 @@ import { getMonthName } from '@/utils/dateUtils';
 import { CALENDAR_CONFIG } from '@/config/calendar';
 
 export function ShiftAssignmentTable() {
-  const { doctors, loading, error } = useDoctors();
+  const { 
+    doctors, 
+    loading, 
+    error, 
+    handleAddDoctor, 
+    handleUpdateDoctor, 
+    handleDeleteDoctor 
+  } = useDoctors();
   const [showDeleteColumnDialog, setShowDeleteColumnDialog] = useState(false);
   const [columnToDelete, setColumnToDelete] = useState<string | null>(null);
+  
+  // Doctor management state
+  const [showAddDoctorDialog, setShowAddDoctorDialog] = useState(false);
+  const [showEditDoctorDialog, setShowEditDoctorDialog] = useState(false);
+  const [showDeleteDoctorDialog, setShowDeleteDoctorDialog] = useState(false);
+  const [doctorToEdit, setDoctorToEdit] = useState<any | null>(null);
+  const [doctorToDelete, setDoctorToDelete] = useState<any | null>(null);
   
   const { calendarDays, isHoliday, isWeekendDay } = useCalendar(
     CALENDAR_CONFIG.CURRENT_MONTH,
@@ -108,6 +125,68 @@ export function ShiftAssignmentTable() {
   const handleCancelDeleteColumn = () => {
     setShowDeleteColumnDialog(false);
     setColumnToDelete(null);
+  };
+
+  // Doctor management handlers
+  const handleAddDoctorClick = () => {
+    setShowAddDoctorDialog(true);
+  };
+
+  const handleConfirmAddDoctor = async (doctorData: { name: string; role: string; subspecialty?: string }) => {
+    try {
+      await handleAddDoctor(doctorData);
+      setShowAddDoctorDialog(false);
+    } catch (err) {
+      // Error is handled in the hook
+    }
+  };
+
+  const handleCancelAddDoctor = () => {
+    setShowAddDoctorDialog(false);
+  };
+
+  const handleEditDoctorClick = (doctor: any) => {
+    setDoctorToEdit(doctor);
+    setShowEditDoctorDialog(true);
+  };
+
+  const handleConfirmEditDoctor = async (doctorId: string, doctorData: { name: string; role: string; subspecialty?: string }) => {
+    try {
+      await handleUpdateDoctor(doctorId, doctorData);
+      setShowEditDoctorDialog(false);
+      setDoctorToEdit(null);
+    } catch (err) {
+      // Error is handled in the hook
+    }
+  };
+
+  const handleCancelEditDoctor = () => {
+    setShowEditDoctorDialog(false);
+    setDoctorToEdit(null);
+  };
+
+  const handleDeleteDoctorClick = (doctor: any) => {
+    setDoctorToDelete(doctor);
+    setShowDeleteDoctorDialog(true);
+  };
+
+  const handleConfirmDeleteDoctor = async (doctorId: string) => {
+    try {
+      await handleDeleteDoctor(doctorId);
+      setShowDeleteDoctorDialog(false);
+      setDoctorToDelete(null);
+      // Clear selected doctor if it was the deleted one
+      if (selectedDoctorId === doctorId) {
+        setSelectedDoctorId(null);
+      }
+    } catch (err) {
+      // Error is handled in the hook
+    }
+  };
+
+  const handleCancelDeleteDoctor = () => {
+    setShowDeleteDoctorDialog(false);
+    setDoctorToDelete(null);
   };
 
   if (loading || columnsLoading || assignmentsLoading) {
@@ -210,11 +289,22 @@ export function ShiftAssignmentTable() {
           </CardContent>
         </Card>
 
+        {/* Doctor Selection Panel */}
         <Card className="xl:col-span-1 h-full">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Stethoscope size={20} />
-              Doctors
+            <CardTitle className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Stethoscope size={20} />
+                Doctors
+              </div>
+              <button
+                onClick={handleAddDoctorClick}
+                className="flex items-center gap-1 px-2 py-1 text-xs bg-green-500 text-white rounded hover:bg-green-600 transition-colors"
+                title="Add new doctor"
+              >
+                <UserPlus size={12} />
+                Add
+              </button>
             </CardTitle>
           </CardHeader>
           <CardContent className="h-full flex flex-col">
@@ -260,6 +350,8 @@ export function ShiftAssignmentTable() {
                     shiftCount={getDoctorShiftCount(doctor.id)}
                     isSelected={selectedDoctorId === doctor.id}
                     onClick={() => handleDoctorSelect(doctor.id)}
+                    onEdit={handleEditDoctorClick}
+                    onDelete={handleDeleteDoctorClick}
                   />
                 ))
               ) : (
@@ -316,6 +408,27 @@ export function ShiftAssignmentTable() {
         doctors={doctors}
         onConfirm={handleConfirmAddAssignment}
         onCancel={handleCancelAddAssignment}
+      />
+
+      <AddDoctorDialog
+        isOpen={showAddDoctorDialog}
+        onConfirm={handleConfirmAddDoctor}
+        onCancel={handleCancelAddDoctor}
+      />
+
+      <EditDoctorDialog
+        isOpen={showEditDoctorDialog}
+        doctor={doctorToEdit}
+        onConfirm={handleConfirmEditDoctor}
+        onCancel={handleCancelEditDoctor}
+      />
+
+      <DeleteDoctorDialog
+        isOpen={showDeleteDoctorDialog}
+        doctor={doctorToDelete}
+        shiftCount={doctorToDelete ? getDoctorShiftCount(doctorToDelete.id) : 0}
+        onConfirm={handleConfirmDeleteDoctor}
+        onCancel={handleCancelDeleteDoctor}
       />
     </div>
   );
