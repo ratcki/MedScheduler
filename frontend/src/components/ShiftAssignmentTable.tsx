@@ -136,21 +136,21 @@ export function ShiftAssignmentTable() {
         <h1 className="text-3xl font-bold">Shift Assignment</h1>
       </div>
       
-      <div className="grid grid-cols-1 xl:grid-cols-4 gap-6 items-start">
+      <div className="grid grid-cols-1 xl:grid-cols-4 gap-4 items-start">
         <Card className="xl:col-span-3">
           <CardHeader>
             <CardTitle>{getMonthName(CALENDAR_CONFIG.CURRENT_MONTH)} {CALENDAR_CONFIG.CURRENT_YEAR}</CardTitle>
           </CardHeader>
-          <CardContent className="p-0">
+          <CardContent className="px-4">
             <div className="overflow-x-auto">
-              <Table>
+              <Table className="border border-gray-300 rounded-lg">
                 <TableHeader>
                   <TableRow>
                     <TableHead className="sticky left-0 bg-white z-10 border-r-2 border-gray-200 min-w-[80px] text-center">
                       Date
                     </TableHead>
                     {shiftColumns.map((shift) => (
-                      <TableHead key={shift.id} className={`min-w-[150px] ${shift.color} text-center`}>
+                      <TableHead key={shift.id} className={`min-w-[150px] ${shift.color} text-center border-l border-gray-300`}>
                         <EditableShiftHeader
                           shift={shift}
                           onUpdate={handleUpdateShiftColumn}
@@ -158,7 +158,7 @@ export function ShiftAssignmentTable() {
                         />
                       </TableHead>
                     ))}
-                    <TableHead className="min-w-[100px] text-center">
+                    <TableHead className="min-w-[100px] text-center border-l border-gray-300">
                       <button
                         onClick={handleAddShiftColumn}
                         className="flex items-center gap-1 px-2 py-1 text-xs bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors"
@@ -180,7 +180,7 @@ export function ShiftAssignmentTable() {
                             isWeekendDay(date) ? 'bg-gray-50 text-gray-600' : ''
                           }`}
                         >
-                          <span className={`text-lg ${isHoliday(date) ? 'font-bold' : ''}`}>{date}</span>
+                          <span className={`text-xs ${isHoliday(date) ? 'font-bold' : ''}`}>{date}</span>
                         </TableCell>
                         {shiftColumns.map((shift) => (
                           <ShiftCell
@@ -200,7 +200,7 @@ export function ShiftAssignmentTable() {
                             onAddAssignment={handleAddAssignment}
                           />
                         ))}
-                        <TableCell className="min-w-[100px]"></TableCell>
+                        <TableCell className="min-w-[100px] border-l border-gray-300"></TableCell>
                       </TableRow>
                     );
                   })}
@@ -214,7 +214,7 @@ export function ShiftAssignmentTable() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Stethoscope size={20} />
-              Available Doctors
+              Doctors
             </CardTitle>
           </CardHeader>
           <CardContent className="h-full flex flex-col">
