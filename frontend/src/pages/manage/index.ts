@@ -1,0 +1,1 @@
+export { ShiftAssignmentTable } from './ShiftAssignmentTable';

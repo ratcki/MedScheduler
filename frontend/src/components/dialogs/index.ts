@@ -1,0 +1,9 @@
+export { AddAssignmentDialog } from './AddAssignmentDialog';
+export { AddDoctorDialog } from './AddDoctorDialog';
+export { DeleteAssignmentDialog } from './DeleteAssignmentDialog';
+export { DeleteColumnDialog } from './DeleteColumnDialog';
+export { DeleteDoctorDialog } from './DeleteDoctorDialog';
+export { EditAssignmentDialog } from './EditAssignmentDialog';
+export { EditDoctorDialog } from './EditDoctorDialog';
+export { ReplaceAssignmentDialog } from './ReplaceAssignmentDialog';
+export { SwapAssignmentDialog } from './SwapAssignmentDialog';

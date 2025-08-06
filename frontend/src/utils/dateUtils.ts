@@ -14,3 +14,12 @@ export const isWeekend = (date: number, month: number, year: number) => {
   const day = new Date(year, month - 1, date).getDay();
   return day === 0 || day === 6; // Sunday = 0, Saturday = 6
 };
+
+export const isToday = (date: number, month: number, year: number) => {
+  const today = new Date();
+  return (
+    today.getDate() === date &&
+    today.getMonth() === month - 1 &&
+    today.getFullYear() === year
+  );
+};

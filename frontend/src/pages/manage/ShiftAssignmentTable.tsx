@@ -8,19 +8,20 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { Plus, Stethoscope, Search, X, UserPlus } from 'lucide-react';
-import { DoctorCard } from '@/components/DoctorCard';
-import { ShiftCell } from '@/components/ShiftCell';
-import { EditableShiftHeader } from '@/components/EditableShiftHeader';
-import { ReplaceAssignmentDialog } from '@/components/ReplaceAssignmentDialog';
-import { DeleteColumnDialog } from '@/components/DeleteColumnDialog';
-import { SwapAssignmentDialog } from '@/components/SwapAssignmentDialog';
-import { DeleteAssignmentDialog } from '@/components/DeleteAssignmentDialog';
-import { EditAssignmentDialog } from '@/components/EditAssignmentDialog';
-import { AddAssignmentDialog } from '@/components/AddAssignmentDialog';
-import { AddDoctorDialog } from '@/components/AddDoctorDialog';
-import { EditDoctorDialog } from '@/components/EditDoctorDialog';
-import { DeleteDoctorDialog } from '@/components/DeleteDoctorDialog';
+import { Plus, Stethoscope, Search, X, UserPlus, BarChart3 } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { DoctorCard, ShiftCell, EditableShiftHeader } from '@/components/shared';
+import { 
+  ReplaceAssignmentDialog,
+  DeleteColumnDialog,
+  SwapAssignmentDialog,
+  DeleteAssignmentDialog,
+  EditAssignmentDialog,
+  AddAssignmentDialog,
+  AddDoctorDialog,
+  EditDoctorDialog,
+  DeleteDoctorDialog
+} from '@/components/dialogs';
 import { useShiftAssignments, useShiftColumns } from '@/hooks/useShiftAssignments';
 import { useDoctorSearch } from '@/hooks/useDoctorSearch';
 import { useDoctors } from '@/hooks/useDoctors';
@@ -211,8 +212,15 @@ export function ShiftAssignmentTable() {
 
   return (
     <div className="p-6 max-w-full mx-auto">
-      <div className="mb-8">
+      <div className="mb-8 flex items-center justify-between">
         <h1 className="text-3xl font-bold">Shift Assignment</h1>
+        <Link
+          to="/dashboard"
+          className="flex items-center gap-2 px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
+        >
+          <BarChart3 size={16} />
+          View Dashboard
+        </Link>
       </div>
       
       <div className="grid grid-cols-1 xl:grid-cols-4 gap-4 items-start">
