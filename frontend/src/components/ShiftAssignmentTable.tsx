@@ -8,7 +8,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { Plus, Stethoscope, Search, X, UserPlus, Edit2, Trash2 } from 'lucide-react';
+import { Plus, Stethoscope, Search, X, UserPlus } from 'lucide-react';
 import { DoctorCard } from '@/components/DoctorCard';
 import { ShiftCell } from '@/components/ShiftCell';
 import { EditableShiftHeader } from '@/components/EditableShiftHeader';
@@ -299,7 +299,7 @@ export function ShiftAssignmentTable() {
               </div>
               <button
                 onClick={handleAddDoctorClick}
-                className="flex items-center gap-1 px-2 py-1 text-xs bg-green-500 text-white rounded hover:bg-green-600 transition-colors"
+                className="flex items-center gap-1 p-2 text-xs bg-green-500 text-white rounded hover:bg-green-600 transition-colors"
                 title="Add new doctor"
               >
                 <UserPlus size={12} />
@@ -355,7 +355,7 @@ export function ShiftAssignmentTable() {
                   />
                 ))
               ) : (
-                <div className="text-center py-8 text-gray-500">
+                <div className="text-center py-2 text-gray-500">
                   <Search size={32} className="mx-auto mb-2 text-gray-300" />
                   <div className="text-sm">No doctors found</div>
                   <div className="text-xs">Try adjusting your search terms</div>
