@@ -1,56 +1,64 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Doctor } from '@/types/medical';
 import { Search, X } from 'lucide-react';
 
-interface AddAssignmentDialogProps {
+interface AssignmentDialogProps {
   isOpen: boolean;
-  assignment: {date: number, shiftId: string} | null;
+  assignment: { date: number, shiftId: string, doctor?: Doctor } | null;
   doctors: Doctor[];
   onConfirm: (doctorId: string) => void;
   onCancel: () => void;
 }
 
-export function AddAssignmentDialog({ 
+export function AssignmentDialog({
   isOpen, 
   assignment, 
   doctors,
   onConfirm, 
   onCancel 
-}: AddAssignmentDialogProps) {
+}: AssignmentDialogProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedDoctorId, setSelectedDoctorId] = useState<string | null>(null);
 
+  const isEditMode = !!assignment?.doctor;
+
+  useEffect(() => {
+    setSelectedDoctorId(null);
+    setSearchTerm('');
+  }, [isOpen]);
+
   if (!isOpen || !assignment) return null;
 
-  const filteredDoctors = doctors.filter(doctor => 
-    doctor.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    doctor.role.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (doctor.subspecialty && doctor.subspecialty.toLowerCase().includes(searchTerm.toLowerCase()))
-  );
+  const filteredDoctors = doctors.filter(doctor => {
+    if (isEditMode && doctor.id === assignment.doctor?.id) {
+      return false; // Exclude current doctor in edit mode
+    }
+    return (
+      doctor.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      doctor.role.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (doctor.subspecialty && doctor.subspecialty.toLowerCase().includes(searchTerm.toLowerCase()))
+    );
+  });
 
   const handleConfirm = () => {
     if (selectedDoctorId) {
       onConfirm(selectedDoctorId);
-      setSearchTerm('');
-      setSelectedDoctorId(null);
     }
-  };
-
-  const handleCancel = () => {
-    setSearchTerm('');
-    setSelectedDoctorId(null);
-    onCancel();
   };
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
       <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4 max-h-[80vh] flex flex-col">
-        <h3 className="text-lg font-semibold mb-4">Assign Doctor</h3>
+        <h3 className="text-lg font-semibold mb-4">{isEditMode ? 'Reassign Doctor' : 'Assign Doctor'}</h3>
         
         <div className="mb-4">
-          <div className="p-3 bg-green-50 border border-green-200 rounded mb-4">
-            <div className="text-sm text-green-800">
-              <strong>Day {assignment.date}</strong> - Select a doctor to assign to this shift
+          <div className={`p-3 border rounded mb-4 ${isEditMode ? 'bg-blue-50 border-blue-200' : 'bg-green-50 border-green-200'}`}>
+            <div className={`text-sm ${isEditMode ? 'text-blue-800' : 'text-green-800'}`}>
+              <strong>Day {assignment.date}</strong>
+              {isEditMode
+                ? ` - Currently assigned to <strong>${assignment.doctor?.name}</strong>`
+                : ' - Select a doctor to assign to this shift'
+              }
             </div>
           </div>
 
@@ -105,7 +113,7 @@ export function AddAssignmentDialog({
 
         <div className="flex gap-3 justify-end">
           <button
-            onClick={handleCancel}
+            onClick={onCancel}
             className="px-4 py-2 text-gray-600 border border-gray-300 rounded hover:bg-gray-50 transition-colors"
           >
             Cancel
@@ -115,11 +123,11 @@ export function AddAssignmentDialog({
             disabled={!selectedDoctorId}
             className={`px-4 py-2 rounded transition-colors ${
               selectedDoctorId
-                ? 'bg-green-600 text-white hover:bg-green-700'
+                ? isEditMode ? 'bg-blue-600 text-white hover:bg-blue-700' : 'bg-green-600 text-white hover:bg-green-700'
                 : 'bg-gray-300 text-gray-500 cursor-not-allowed'
             }`}
           >
-            Assign Doctor
+            {isEditMode ? 'Reassign Doctor' : 'Assign Doctor'}
           </button>
         </div>
       </div>

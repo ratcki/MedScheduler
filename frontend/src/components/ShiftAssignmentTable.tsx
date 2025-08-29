@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   Table,
@@ -8,27 +7,21 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { Plus, Stethoscope, Search, X, UserPlus, Edit2, Trash2 } from 'lucide-react';
+import { Plus, Stethoscope, Search, X, UserPlus } from 'lucide-react';
 import { DoctorCard } from '@/components/DoctorCard';
 import { ShiftCell } from '@/components/ShiftCell';
 import { EditableShiftHeader } from '@/components/EditableShiftHeader';
-import { ReplaceAssignmentDialog } from '@/components/ReplaceAssignmentDialog';
-import { DeleteColumnDialog } from '@/components/DeleteColumnDialog';
-import { SwapAssignmentDialog } from '@/components/SwapAssignmentDialog';
-import { DeleteAssignmentDialog } from '@/components/DeleteAssignmentDialog';
-import { EditAssignmentDialog } from '@/components/EditAssignmentDialog';
-import { AddAssignmentDialog } from '@/components/AddAssignmentDialog';
-import { AddDoctorDialog } from '@/components/AddDoctorDialog';
-import { EditDoctorDialog } from '@/components/EditDoctorDialog';
-import { DeleteDoctorDialog } from '@/components/DeleteDoctorDialog';
 import { useShiftAssignments, useShiftColumns } from '@/hooks/useShiftAssignments';
 import { useDoctorSearch } from '@/hooks/useDoctorSearch';
 import { useDoctors } from '@/hooks/useDoctors';
 import { useCalendar } from '@/hooks/useCalendar';
+import { useDialog } from '@/hooks/useDialog';
 import { getMonthName } from '@/utils/dateUtils';
 import { CALENDAR_CONFIG } from '@/config/calendar';
+import { Doctor } from '@/types/medical';
 
 export function ShiftAssignmentTable() {
+  const { openDialog, closeDialog } = useDialog();
   const { 
     doctors, 
     loading, 
@@ -37,15 +30,6 @@ export function ShiftAssignmentTable() {
     handleUpdateDoctor, 
     handleDeleteDoctor 
   } = useDoctors();
-  const [showDeleteColumnDialog, setShowDeleteColumnDialog] = useState(false);
-  const [columnToDelete, setColumnToDelete] = useState<string | null>(null);
-  
-  // Doctor management state
-  const [showAddDoctorDialog, setShowAddDoctorDialog] = useState(false);
-  const [showEditDoctorDialog, setShowEditDoctorDialog] = useState(false);
-  const [showDeleteDoctorDialog, setShowDeleteDoctorDialog] = useState(false);
-  const [doctorToEdit, setDoctorToEdit] = useState<any | null>(null);
-  const [doctorToDelete, setDoctorToDelete] = useState<any | null>(null);
   
   const { calendarDays, isHoliday, isWeekendDay } = useCalendar(
     CALENDAR_CONFIG.CURRENT_MONTH,
@@ -65,36 +49,17 @@ export function ShiftAssignmentTable() {
     loading: assignmentsLoading,
     error: assignmentsError,
     selectedDoctorId,
-    showConfirmDialog,
-    pendingAssignment,
     draggedAssignment,
-    showSwapDialog,
-    pendingSwap,
-    showDeleteAssignmentDialog,
-    showEditAssignmentDialog,
-    assignmentToEdit,
-    showAddAssignmentDialog,
-    assignmentToAdd,
     getDoctorShiftCount,
     getAssignedDoctor,
     handleDoctorSelect,
     handleCellClick,
-    handleConfirmReplacement,
-    handleCancelReplacement,
     handleDragStart,
     handleDragEnd,
     handleDrop,
-    handleConfirmSwap,
-    handleCancelSwap,
     handleEditAssignment,
     handleDeleteAssignment,
-    handleConfirmEditAssignment,
-    handleCancelEditAssignment,
-    handleConfirmDeleteAssignment,
-    handleCancelDeleteAssignment,
     handleAddAssignment,
-    handleConfirmAddAssignment,
-    handleCancelAddAssignment,
     setSelectedDoctorId,
     loadAssignments
   } = useShiftAssignments(doctors);
@@ -105,88 +70,66 @@ export function ShiftAssignmentTable() {
     filteredDoctors
   } = useDoctorSearch(doctors);
 
-  const handleDeleteShiftColumnWithAssignments = async (id: string) => {
-    await handleDeleteShiftColumn(id, loadAssignments);
-  };
-
   const handleDeleteColumnRequest = (id: string) => {
-    setColumnToDelete(id);
-    setShowDeleteColumnDialog(true);
+    openDialog('confirm', {
+      title: 'Delete Column?',
+      message: 'Are you sure you want to delete this column? This will also remove all assignments in this column.',
+      onConfirm: async () => {
+        await handleDeleteShiftColumn(id, loadAssignments);
+        closeDialog();
+      },
+      confirmButtonText: 'Delete',
+      confirmButtonVariant: 'danger',
+    });
   };
 
-  const handleConfirmDeleteColumn = async () => {
-    if (columnToDelete) {
-      await handleDeleteShiftColumnWithAssignments(columnToDelete);
-      setShowDeleteColumnDialog(false);
-      setColumnToDelete(null);
-    }
-  };
-
-  const handleCancelDeleteColumn = () => {
-    setShowDeleteColumnDialog(false);
-    setColumnToDelete(null);
-  };
-
-  // Doctor management handlers
   const handleAddDoctorClick = () => {
-    setShowAddDoctorDialog(true);
+    openDialog('addDoctor', {
+      onConfirm: async (doctorData: any) => {
+        await handleAddDoctor(doctorData);
+        closeDialog();
+      },
+    });
   };
 
-  const handleConfirmAddDoctor = async (doctorData: { name: string; role: string; subspecialty?: string }) => {
-    try {
-      await handleAddDoctor(doctorData);
-      setShowAddDoctorDialog(false);
-    } catch (err) {
-      // Error is handled in the hook
-    }
+  const handleEditDoctorClick = (doctor: Doctor) => {
+    openDialog('editDoctor', {
+      doctor,
+      onConfirm: async (doctorData: any, doctorId: any) => {
+        await handleUpdateDoctor(doctorId, doctorData);
+        closeDialog();
+      },
+    });
   };
 
-  const handleCancelAddDoctor = () => {
-    setShowAddDoctorDialog(false);
-  };
-
-  const handleEditDoctorClick = (doctor: any) => {
-    setDoctorToEdit(doctor);
-    setShowEditDoctorDialog(true);
-  };
-
-  const handleConfirmEditDoctor = async (doctorId: string, doctorData: { name: string; role: string; subspecialty?: string }) => {
-    try {
-      await handleUpdateDoctor(doctorId, doctorData);
-      setShowEditDoctorDialog(false);
-      setDoctorToEdit(null);
-    } catch (err) {
-      // Error is handled in the hook
-    }
-  };
-
-  const handleCancelEditDoctor = () => {
-    setShowEditDoctorDialog(false);
-    setDoctorToEdit(null);
-  };
-
-  const handleDeleteDoctorClick = (doctor: any) => {
-    setDoctorToDelete(doctor);
-    setShowDeleteDoctorDialog(true);
-  };
-
-  const handleConfirmDeleteDoctor = async (doctorId: string) => {
-    try {
-      await handleDeleteDoctor(doctorId);
-      setShowDeleteDoctorDialog(false);
-      setDoctorToDelete(null);
-      // Clear selected doctor if it was the deleted one
-      if (selectedDoctorId === doctorId) {
-        setSelectedDoctorId(null);
-      }
-    } catch (err) {
-      // Error is handled in the hook
-    }
-  };
-
-  const handleCancelDeleteDoctor = () => {
-    setShowDeleteDoctorDialog(false);
-    setDoctorToDelete(null);
+  const handleDeleteDoctorClick = (doctor: Doctor) => {
+    openDialog('confirm', {
+      title: 'Delete Doctor',
+      message: (
+        <div>
+          <p className="text-gray-700 mb-4">
+            Are you sure you want to delete <strong>{doctor.name}</strong>?
+          </p>
+          <div className="p-3 bg-yellow-50 border border-yellow-200 rounded mb-4">
+            <div className="text-sm text-yellow-800">
+              <strong>Warning:</strong> This doctor is currently assigned to{' '}
+              <strong>{getDoctorShiftCount(doctor.id)}</strong> shift
+              {getDoctorShiftCount(doctor.id) !== 1 ? 's' : ''}.
+              {getDoctorShiftCount(doctor.id) > 0 && ' All their shift assignments will be removed.'}
+            </div>
+          </div>
+        </div>
+      ),
+      onConfirm: async () => {
+        await handleDeleteDoctor(doctor.id);
+        if (selectedDoctorId === doctor.id) {
+          setSelectedDoctorId(null);
+        }
+        closeDialog();
+      },
+      confirmButtonText: 'Delete Doctor',
+      confirmButtonVariant: 'danger',
+    });
   };
 
   if (loading || columnsLoading || assignmentsLoading) {
@@ -365,71 +308,6 @@ export function ShiftAssignmentTable() {
           </CardContent>
         </Card>
       </div>
-
-      <ReplaceAssignmentDialog
-        isOpen={showConfirmDialog}
-        pendingAssignment={pendingAssignment}
-        selectedDoctor={doctors.find(d => d.id === selectedDoctorId)}
-        onConfirm={handleConfirmReplacement}
-        onCancel={handleCancelReplacement}
-      />
-
-      <DeleteColumnDialog
-        isOpen={showDeleteColumnDialog}
-        onConfirm={handleConfirmDeleteColumn}
-        onCancel={handleCancelDeleteColumn}
-      />
-
-      <SwapAssignmentDialog
-        isOpen={showSwapDialog}
-        pendingSwap={pendingSwap}
-        onConfirm={handleConfirmSwap}
-        onCancel={handleCancelSwap}
-      />
-
-      <DeleteAssignmentDialog
-        isOpen={showDeleteAssignmentDialog}
-        assignment={assignmentToEdit}
-        onConfirm={handleConfirmDeleteAssignment}
-        onCancel={handleCancelDeleteAssignment}
-      />
-
-      <EditAssignmentDialog
-        isOpen={showEditAssignmentDialog}
-        assignment={assignmentToEdit}
-        doctors={doctors}
-        onConfirm={handleConfirmEditAssignment}
-        onCancel={handleCancelEditAssignment}
-      />
-
-      <AddAssignmentDialog
-        isOpen={showAddAssignmentDialog}
-        assignment={assignmentToAdd}
-        doctors={doctors}
-        onConfirm={handleConfirmAddAssignment}
-        onCancel={handleCancelAddAssignment}
-      />
-
-      <AddDoctorDialog
-        isOpen={showAddDoctorDialog}
-        onConfirm={handleConfirmAddDoctor}
-        onCancel={handleCancelAddDoctor}
-      />
-
-      <EditDoctorDialog
-        isOpen={showEditDoctorDialog}
-        doctor={doctorToEdit}
-        onConfirm={handleConfirmEditDoctor}
-        onCancel={handleCancelEditDoctor}
-      />
-
-      <DeleteDoctorDialog
-        isOpen={showDeleteDoctorDialog}
-        doctor={doctorToDelete}
-        shiftCount={doctorToDelete ? getDoctorShiftCount(doctorToDelete.id) : 0}
-        onConfirm={handleConfirmDeleteDoctor}
-        onCancel={handleCancelDeleteDoctor}
-      />
     </div>
   );
 }

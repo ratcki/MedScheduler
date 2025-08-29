@@ -9,24 +9,16 @@ import {
   updateShiftColumn,
   deleteShiftColumn
 } from '@/services/apiService';
+import { useDialog } from './useDialog';
 
 export function useShiftAssignments(doctors: Doctor[]) {
+  const { openDialog, closeDialog } = useDialog();
   const [assignments, setAssignments] = useState<ShiftAssignment[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedDoctorId, setSelectedDoctorId] = useState<string | null>(null);
-  const [showConfirmDialog, setShowConfirmDialog] = useState(false);
-  const [pendingAssignment, setPendingAssignment] = useState<any | null>(null);
   const [draggedAssignment, setDraggedAssignment] = useState<{date: number, shiftId: string, doctor: Doctor} | null>(null);
-  const [showSwapDialog, setShowSwapDialog] = useState(false);
-  const [pendingSwap, setPendingSwap] = useState<{from: {date: number, shiftId: string, doctor: Doctor}, to: {date: number, shiftId: string, doctor?: Doctor}} | null>(null);
-  const [showDeleteAssignmentDialog, setShowDeleteAssignmentDialog] = useState(false);
-  const [showEditAssignmentDialog, setShowEditAssignmentDialog] = useState(false);
-  const [assignmentToEdit, setAssignmentToEdit] = useState<{date: number, shiftId: string, doctor: Doctor} | null>(null);
-  const [showAddAssignmentDialog, setShowAddAssignmentDialog] = useState(false);
-  const [assignmentToAdd, setAssignmentToAdd] = useState<{date: number, shiftId: string} | null>(null);
 
-  // Load assignments from backend
   useEffect(() => {
     loadAssignments();
   }, []);
@@ -39,13 +31,11 @@ export function useShiftAssignments(doctors: Doctor[]) {
       setError(null);
     } catch (err: any) {
       setError(err.message);
-      console.error('Failed to load assignments:', err);
     } finally {
       setLoading(false);
     }
   };
 
-  // Memoized doctor shift counts for performance
   const doctorShiftCounts = useMemo(() => {
     const counts: Record<string, number> = {};
     assignments.forEach(assignment => {
@@ -54,7 +44,6 @@ export function useShiftAssignments(doctors: Doctor[]) {
     return counts;
   }, [assignments]);
 
-  // Memoized assignment lookup for performance
   const assignmentLookup = useMemo(() => {
     const lookup: Record<string, string> = {};
     assignments.forEach(assignment => {
@@ -80,22 +69,16 @@ export function useShiftAssignments(doctors: Doctor[]) {
     setSelectedDoctorId(newSelectedId);
   };
 
-  const assignDoctor = async (date: number, shiftId: string) => {
-    if (!selectedDoctorId) return;
-
+  const assignDoctor = async (date: number, shiftId: string, doctorId: string) => {
     try {
-      // Create or update assignment in backend
-      const assignment = { date, shiftId, doctorId: selectedDoctorId };
+      const assignment = { date, shiftId, doctorId };
       await createShiftAssignment(assignment);
-      
-      // Update local state
       setAssignments(prev => {
-        const filteredAssignments = prev.filter(a => !(a.date === date && a.shiftId === shiftId));
-        return [...filteredAssignments, { date, shiftId, doctorId: selectedDoctorId }];
+        const filtered = prev.filter(a => !(a.date === date && a.shiftId === shiftId));
+        return [...filtered, { date, shiftId, doctorId }];
       });
     } catch (err: any) {
       setError(err.message);
-      console.error('Failed to assign doctor:', err);
     }
   };
 
@@ -103,29 +86,23 @@ export function useShiftAssignments(doctors: Doctor[]) {
     if (!selectedDoctorId) return;
 
     const existingDoctor = getAssignedDoctor(date, shiftId);
-    
-    if (existingDoctor) {
-      setPendingAssignment({ date, shiftId, existingDoctor });
-      setShowConfirmDialog(true);
-    } else {
-      assignDoctor(date, shiftId);
+    const selectedDoctor = doctors.find(d => d.id === selectedDoctorId);
+
+    if (existingDoctor && selectedDoctor) {
+      openDialog('confirm', {
+        title: 'Replace Assignment?',
+        message: `Replace ${existingDoctor.name} with ${selectedDoctor.name} for this shift?`,
+        onConfirm: async () => {
+          await assignDoctor(date, shiftId, selectedDoctorId);
+          closeDialog();
+        },
+        confirmButtonText: 'Replace',
+      });
+    } else if (selectedDoctorId) {
+      assignDoctor(date, shiftId, selectedDoctorId);
     }
   };
 
-  const handleConfirmReplacement = async () => {
-    if (pendingAssignment) {
-      await assignDoctor(pendingAssignment.date, pendingAssignment.shiftId);
-    }
-    setShowConfirmDialog(false);
-    setPendingAssignment(null);
-  };
-
-  const handleCancelReplacement = () => {
-    setShowConfirmDialog(false);
-    setPendingAssignment(null);
-  };
-
-  // Drag and Drop handlers
   const handleDragStart = (date: number, shiftId: string) => {
     const doctor = getAssignedDoctor(date, shiftId);
     if (doctor) {
@@ -142,38 +119,16 @@ export function useShiftAssignments(doctors: Doctor[]) {
       const fromDoctor = getAssignedDoctor(from.date, from.shiftId);
       const toDoctor = getAssignedDoctor(to.date, to.shiftId);
 
-      if (!fromDoctor) return;
+      if (!fromDoctor || !toDoctor) return;
 
-      // Delete original assignment
       await deleteShiftAssignment(from.date, from.shiftId);
-      
-      // If target has a doctor, move it to source position
-      if (toDoctor) {
-        await deleteShiftAssignment(to.date, to.shiftId);
-        await createShiftAssignment({ date: from.date, shiftId: from.shiftId, doctorId: toDoctor.id });
-      }
-      
-      // Move dragged doctor to target position
+      await deleteShiftAssignment(to.date, to.shiftId);
+      await createShiftAssignment({ date: from.date, shiftId: from.shiftId, doctorId: toDoctor.id });
       await createShiftAssignment({ date: to.date, shiftId: to.shiftId, doctorId: fromDoctor.id });
       
-      // Update local state
-      setAssignments(prev => {
-        let newAssignments = prev.filter(a => 
-          !(a.date === from.date && a.shiftId === from.shiftId) &&
-          !(a.date === to.date && a.shiftId === to.shiftId)
-        );
-        
-        // Add new assignments
-        newAssignments.push({ date: to.date, shiftId: to.shiftId, doctorId: fromDoctor.id });
-        if (toDoctor) {
-          newAssignments.push({ date: from.date, shiftId: from.shiftId, doctorId: toDoctor.id });
-        }
-        
-        return newAssignments;
-      });
+      await loadAssignments(); // Reload to ensure consistency
     } catch (err: any) {
       setError(err.message);
-      console.error('Failed to swap assignments:', err);
     }
   };
 
@@ -182,30 +137,18 @@ export function useShiftAssignments(doctors: Doctor[]) {
       const fromDoctor = getAssignedDoctor(from.date, from.shiftId);
       if (!fromDoctor) return;
 
-      // Delete original assignment
       await deleteShiftAssignment(from.date, from.shiftId);
-      
-      // Create new assignment
       await createShiftAssignment({ date: to.date, shiftId: to.shiftId, doctorId: fromDoctor.id });
       
-      // Update local state
-      setAssignments(prev => {
-        const filteredAssignments = prev.filter(a => 
-          !(a.date === from.date && a.shiftId === from.shiftId) &&
-          !(a.date === to.date && a.shiftId === to.shiftId)
-        );
-        return [...filteredAssignments, { date: to.date, shiftId: to.shiftId, doctorId: fromDoctor.id }];
-      });
+      await loadAssignments(); // Reload to ensure consistency
     } catch (err: any) {
       setError(err.message);
-      console.error('Failed to move assignment:', err);
     }
   };
 
   const handleDrop = (date: number, shiftId: string) => {
     if (!draggedAssignment) return;
     
-    // Don't do anything if dropping on the same cell
     if (draggedAssignment.date === date && draggedAssignment.shiftId === shiftId) {
       setDraggedAssignment(null);
       return;
@@ -214,14 +157,19 @@ export function useShiftAssignments(doctors: Doctor[]) {
     const targetDoctor = getAssignedDoctor(date, shiftId);
     
     if (targetDoctor) {
-      // Show swap confirmation dialog
-      setPendingSwap({
-        from: draggedAssignment,
-        to: { date, shiftId, doctor: targetDoctor }
+      openDialog('confirm', {
+        title: 'Swap Assignments?',
+        message: `Swap ${draggedAssignment.doctor.name} with ${targetDoctor.name}?`,
+        onConfirm: async () => {
+          await swapAssignments(
+            { date: draggedAssignment.date, shiftId: draggedAssignment.shiftId },
+            { date, shiftId }
+          );
+          closeDialog();
+        },
+        confirmButtonText: 'Swap',
       });
-      setShowSwapDialog(true);
     } else {
-      // Move to empty cell
       moveAssignment(
         { date: draggedAssignment.date, shiftId: draggedAssignment.shiftId },
         { date, shiftId }
@@ -231,138 +179,47 @@ export function useShiftAssignments(doctors: Doctor[]) {
     setDraggedAssignment(null);
   };
 
-  const handleConfirmSwap = async () => {
-    if (pendingSwap) {
-      await swapAssignments(
-        { date: pendingSwap.from.date, shiftId: pendingSwap.from.shiftId },
-        { date: pendingSwap.to.date, shiftId: pendingSwap.to.shiftId }
-      );
-    }
-    setShowSwapDialog(false);
-    setPendingSwap(null);
-  };
-
-  const handleCancelSwap = () => {
-    setShowSwapDialog(false);
-    setPendingSwap(null);
-  };
-
-  // Edit and Delete Assignment handlers
   const handleEditAssignment = (date: number, shiftId: string) => {
     const doctor = getAssignedDoctor(date, shiftId);
     if (doctor) {
-      setAssignmentToEdit({ date, shiftId, doctor });
-      setShowEditAssignmentDialog(true);
+      openDialog('editAssignment', {
+        assignment: { date, shiftId, doctor },
+        onConfirm: async (newDoctorId: string) => {
+          await assignDoctor(date, shiftId, newDoctorId);
+          closeDialog();
+        },
+      });
     }
   };
 
   const handleDeleteAssignment = (date: number, shiftId: string) => {
     const doctor = getAssignedDoctor(date, shiftId);
     if (doctor) {
-      setAssignmentToEdit({ date, shiftId, doctor });
-      setShowDeleteAssignmentDialog(true);
+      openDialog('confirm', {
+        title: 'Delete Assignment?',
+        message: `Are you sure you want to remove ${doctor.name} from this shift?`,
+        onConfirm: async () => {
+          await deleteShiftAssignment(date, shiftId);
+          await loadAssignments();
+          closeDialog();
+        },
+        confirmButtonText: 'Delete',
+        confirmButtonVariant: 'danger',
+      });
     }
   };
 
-  const handleConfirmEditAssignment = async (newDoctorId: string) => {
-    if (assignmentToEdit) {
-      try {
-        // Delete old assignment
-        await deleteShiftAssignment(assignmentToEdit.date, assignmentToEdit.shiftId);
-        
-        // Create new assignment with new doctor
-        await createShiftAssignment({ 
-          date: assignmentToEdit.date, 
-          shiftId: assignmentToEdit.shiftId, 
-          doctorId: newDoctorId 
-        });
-        
-        // Update local state
-        setAssignments(prev => {
-          const filteredAssignments = prev.filter(a => 
-            !(a.date === assignmentToEdit.date && a.shiftId === assignmentToEdit.shiftId)
-          );
-          return [...filteredAssignments, { 
-            date: assignmentToEdit.date, 
-            shiftId: assignmentToEdit.shiftId, 
-            doctorId: newDoctorId 
-          }];
-        });
-      } catch (err: any) {
-        setError(err.message);
-        console.error('Failed to edit assignment:', err);
-      }
-    }
-    setShowEditAssignmentDialog(false);
-    setAssignmentToEdit(null);
-  };
-
-  const handleCancelEditAssignment = () => {
-    setShowEditAssignmentDialog(false);
-    setAssignmentToEdit(null);
-  };
-
-  const handleConfirmDeleteAssignment = async () => {
-    if (assignmentToEdit) {
-      try {
-        await deleteShiftAssignment(assignmentToEdit.date, assignmentToEdit.shiftId);
-        
-        // Update local state
-        setAssignments(prev => prev.filter(a => 
-          !(a.date === assignmentToEdit.date && a.shiftId === assignmentToEdit.shiftId)
-        ));
-      } catch (err: any) {
-        setError(err.message);
-        console.error('Failed to delete assignment:', err);
-      }
-    }
-    setShowDeleteAssignmentDialog(false);
-    setAssignmentToEdit(null);
-  };
-
-  const handleCancelDeleteAssignment = () => {
-    setShowDeleteAssignmentDialog(false);
-    setAssignmentToEdit(null);
-  };
-
-  // Add Assignment handlers
   const handleAddAssignment = (date: number, shiftId: string) => {
-    // Only allow adding if no doctor is currently selected for the sidebar flow
-    // and if there's no existing assignment
     const existingDoctor = getAssignedDoctor(date, shiftId);
     if (!existingDoctor && !selectedDoctorId) {
-      setAssignmentToAdd({ date, shiftId });
-      setShowAddAssignmentDialog(true);
+      openDialog('addAssignment', {
+        assignment: { date, shiftId },
+        onConfirm: async (doctorId: string) => {
+          await assignDoctor(date, shiftId, doctorId);
+          closeDialog();
+        },
+      });
     }
-  };
-
-  const handleConfirmAddAssignment = async (doctorId: string) => {
-    if (assignmentToAdd) {
-      try {
-        await createShiftAssignment({ 
-          date: assignmentToAdd.date, 
-          shiftId: assignmentToAdd.shiftId, 
-          doctorId 
-        });
-        
-        // Update local state
-        setAssignments(prev => [...prev, { 
-          date: assignmentToAdd.date, 
-          shiftId: assignmentToAdd.shiftId, 
-          doctorId 
-        }]);
-      } catch (err: any) {
-        setError(err.message);
-        console.error('Failed to add assignment:', err);
-      }
-    }
-    setShowAddAssignmentDialog(false);
-    setAssignmentToAdd(null);
-  };
-
-  const handleCancelAddAssignment = () => {
-    setShowAddAssignmentDialog(false);
-    setAssignmentToAdd(null);
   };
 
   return {
@@ -370,36 +227,17 @@ export function useShiftAssignments(doctors: Doctor[]) {
     loading,
     error,
     selectedDoctorId,
-    showConfirmDialog,
-    pendingAssignment,
     draggedAssignment,
-    showSwapDialog,
-    pendingSwap,
-    showDeleteAssignmentDialog,
-    showEditAssignmentDialog,
-    assignmentToEdit,
-    showAddAssignmentDialog,
-    assignmentToAdd,
     getDoctorShiftCount,
     getAssignedDoctor,
     handleDoctorSelect,
     handleCellClick,
-    handleConfirmReplacement,
-    handleCancelReplacement,
     handleDragStart,
     handleDragEnd,
     handleDrop,
-    handleConfirmSwap,
-    handleCancelSwap,
     handleEditAssignment,
     handleDeleteAssignment,
-    handleConfirmEditAssignment,
-    handleCancelEditAssignment,
-    handleConfirmDeleteAssignment,
-    handleCancelDeleteAssignment,
     handleAddAssignment,
-    handleConfirmAddAssignment,
-    handleCancelAddAssignment,
     setSelectedDoctorId,
     setAssignments,
     loadAssignments
