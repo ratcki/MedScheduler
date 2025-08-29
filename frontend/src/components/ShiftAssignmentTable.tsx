@@ -8,7 +8,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { Plus, Stethoscope, Search, X, UserPlus, Edit2, Trash2 } from 'lucide-react';
+import { Plus, Stethoscope, Search, X, UserPlus } from 'lucide-react';
 import { DoctorCard } from '@/components/DoctorCard';
 import { ShiftCell } from '@/components/ShiftCell';
 import { EditableShiftHeader } from '@/components/EditableShiftHeader';
@@ -27,76 +27,44 @@ import { useDoctors } from '@/hooks/useDoctors';
 import { useCalendar } from '@/hooks/useCalendar';
 import { getMonthName } from '@/utils/dateUtils';
 import { CALENDAR_CONFIG } from '@/config/calendar';
+import { Doctor } from '@/types/medical';
 
 export function ShiftAssignmentTable() {
   const { 
     doctors, 
-    loading, 
-    error, 
+    loading: doctorsLoading,
+    error: doctorsError,
     handleAddDoctor, 
     handleUpdateDoctor, 
     handleDeleteDoctor 
   } = useDoctors();
-  const [showDeleteColumnDialog, setShowDeleteColumnDialog] = useState(false);
-  const [columnToDelete, setColumnToDelete] = useState<string | null>(null);
   
-  // Doctor management state
-  const [showAddDoctorDialog, setShowAddDoctorDialog] = useState(false);
-  const [showEditDoctorDialog, setShowEditDoctorDialog] = useState(false);
-  const [showDeleteDoctorDialog, setShowDeleteDoctorDialog] = useState(false);
-  const [doctorToEdit, setDoctorToEdit] = useState<any | null>(null);
-  const [doctorToDelete, setDoctorToDelete] = useState<any | null>(null);
-  
-  const { calendarDays, isHoliday, isWeekendDay } = useCalendar(
-    CALENDAR_CONFIG.CURRENT_MONTH,
-    CALENDAR_CONFIG.CURRENT_YEAR
-  );
-
   const {
     shiftColumns,
     loading: columnsLoading,
     error: columnsError,
     handleUpdateShiftColumn,
     handleDeleteShiftColumn,
-    handleAddShiftColumn
-  } = useShiftColumns([]);
+    handleAddShiftColumn,
+    loadShiftColumns,
+  } = useShiftColumns();
 
   const {
+    assignments,
     loading: assignmentsLoading,
     error: assignmentsError,
+    loadAssignments,
     selectedDoctorId,
-    showConfirmDialog,
-    pendingAssignment,
-    draggedAssignment,
-    showSwapDialog,
-    pendingSwap,
-    showDeleteAssignmentDialog,
-    showEditAssignmentDialog,
-    assignmentToEdit,
-    showAddAssignmentDialog,
-    assignmentToAdd,
+    setSelectedDoctorId,
     getDoctorShiftCount,
     getAssignedDoctor,
     handleDoctorSelect,
-    handleCellClick,
-    handleConfirmReplacement,
-    handleCancelReplacement,
-    handleDragStart,
-    handleDragEnd,
-    handleDrop,
-    handleConfirmSwap,
-    handleCancelSwap,
-    handleEditAssignment,
-    handleDeleteAssignment,
-    handleConfirmEditAssignment,
-    handleCancelEditAssignment,
-    handleConfirmDeleteAssignment,
-    handleCancelDeleteAssignment,
-    handleAddAssignment,
-    handleConfirmAddAssignment,
-    handleCancelAddAssignment,
-    setSelectedDoctorId,
-    loadAssignments
+    assignDoctor,
+    swapAssignments,
+    moveAssignment,
+    editAssignment,
+    removeAssignment,
+    addAssignment,
   } = useShiftAssignments(doctors);
 
   const {
@@ -105,10 +73,36 @@ export function ShiftAssignmentTable() {
     filteredDoctors
   } = useDoctorSearch(doctors);
 
-  const handleDeleteShiftColumnWithAssignments = async (id: string) => {
-    await handleDeleteShiftColumn(id, loadAssignments);
-  };
+  // UI State managed in the component
+  const [showDeleteColumnDialog, setShowDeleteColumnDialog] = useState(false);
+  const [columnToDelete, setColumnToDelete] = useState<string | null>(null);
 
+  const [showAddDoctorDialog, setShowAddDoctorDialog] = useState(false);
+  const [showEditDoctorDialog, setShowEditDoctorDialog] = useState(false);
+  const [showDeleteDoctorDialog, setShowDeleteDoctorDialog] = useState(false);
+  const [doctorToEdit, setDoctorToEdit] = useState<Doctor | null>(null);
+  const [doctorToDelete, setDoctorToDelete] = useState<Doctor | null>(null);
+
+  const [showConfirmDialog, setShowConfirmDialog] = useState(false);
+  const [pendingAssignment, setPendingAssignment] = useState<{ date: number; shiftId: string; existingDoctor: Doctor } | null>(null);
+
+  const [draggedAssignment, setDraggedAssignment] = useState<{ date: number; shiftId: string; doctor: Doctor } | null>(null);
+  const [showSwapDialog, setShowSwapDialog] = useState(false);
+  const [pendingSwap, setPendingSwap] = useState<{ from: { date: number; shiftId: string; doctor: Doctor }, to: { date: number; shiftId: string; doctor?: Doctor } } | null>(null);
+
+  const [showDeleteAssignmentDialog, setShowDeleteAssignmentDialog] = useState(false);
+  const [assignmentToDelete, setAssignmentToDelete] = useState<{ date: number; shiftId: string; doctor: Doctor } | null>(null);
+
+  const [showEditAssignmentDialog, setShowEditAssignmentDialog] = useState(false);
+  const [assignmentToEdit, setAssignmentToEdit] = useState<{ date: number; shiftId: string; doctor: Doctor } | null>(null);
+
+  const [showAddAssignmentDialog, setShowAddAssignmentDialog] = useState(false);
+  const [assignmentToAdd, setAssignmentToAdd] = useState<{ date: number; shiftId: string } | null>(null);
+
+  const loading = doctorsLoading || columnsLoading || assignmentsLoading;
+  const error = doctorsError || columnsError || assignmentsError;
+
+  // Column handlers
   const handleDeleteColumnRequest = (id: string) => {
     setColumnToDelete(id);
     setShowDeleteColumnDialog(true);
@@ -116,7 +110,8 @@ export function ShiftAssignmentTable() {
 
   const handleConfirmDeleteColumn = async () => {
     if (columnToDelete) {
-      await handleDeleteShiftColumnWithAssignments(columnToDelete);
+      await handleDeleteShiftColumn(columnToDelete);
+      await loadAssignments();
       setShowDeleteColumnDialog(false);
       setColumnToDelete(null);
     }
@@ -133,31 +128,23 @@ export function ShiftAssignmentTable() {
   };
 
   const handleConfirmAddDoctor = async (doctorData: { name: string; role: string; subspecialty?: string }) => {
-    try {
-      await handleAddDoctor(doctorData);
-      setShowAddDoctorDialog(false);
-    } catch (err) {
-      // Error is handled in the hook
-    }
+    await handleAddDoctor(doctorData);
+    setShowAddDoctorDialog(false);
   };
 
   const handleCancelAddDoctor = () => {
     setShowAddDoctorDialog(false);
   };
 
-  const handleEditDoctorClick = (doctor: any) => {
+  const handleEditDoctorClick = (doctor: Doctor) => {
     setDoctorToEdit(doctor);
     setShowEditDoctorDialog(true);
   };
 
   const handleConfirmEditDoctor = async (doctorId: string, doctorData: { name: string; role: string; subspecialty?: string }) => {
-    try {
-      await handleUpdateDoctor(doctorId, doctorData);
-      setShowEditDoctorDialog(false);
-      setDoctorToEdit(null);
-    } catch (err) {
-      // Error is handled in the hook
-    }
+    await handleUpdateDoctor(doctorId, doctorData);
+    setShowEditDoctorDialog(false);
+    setDoctorToEdit(null);
   };
 
   const handleCancelEditDoctor = () => {
@@ -165,22 +152,17 @@ export function ShiftAssignmentTable() {
     setDoctorToEdit(null);
   };
 
-  const handleDeleteDoctorClick = (doctor: any) => {
+  const handleDeleteDoctorClick = (doctor: Doctor) => {
     setDoctorToDelete(doctor);
     setShowDeleteDoctorDialog(true);
   };
 
   const handleConfirmDeleteDoctor = async (doctorId: string) => {
-    try {
-      await handleDeleteDoctor(doctorId);
-      setShowDeleteDoctorDialog(false);
-      setDoctorToDelete(null);
-      // Clear selected doctor if it was the deleted one
-      if (selectedDoctorId === doctorId) {
-        setSelectedDoctorId(null);
-      }
-    } catch (err) {
-      // Error is handled in the hook
+    await handleDeleteDoctor(doctorId);
+    setShowDeleteDoctorDialog(false);
+    setDoctorToDelete(null);
+    if (selectedDoctorId === doctorId) {
+      setSelectedDoctorId(null);
     }
   };
 
@@ -189,7 +171,153 @@ export function ShiftAssignmentTable() {
     setDoctorToDelete(null);
   };
 
-  if (loading || columnsLoading || assignmentsLoading) {
+  const { calendarDays, isHoliday, isWeekendDay } = useCalendar(
+    CALENDAR_CONFIG.CURRENT_MONTH,
+    CALENDAR_CONFIG.CURRENT_YEAR
+  );
+
+  // Cell interaction handlers
+  const handleCellClick = (date: number, shiftId: string) => {
+    if (!selectedDoctorId) return;
+
+    const existingDoctor = getAssignedDoctor(date, shiftId);
+    if (existingDoctor) {
+      setPendingAssignment({ date, shiftId, existingDoctor });
+      setShowConfirmDialog(true);
+    } else {
+      assignDoctor(date, shiftId, selectedDoctorId);
+    }
+  };
+
+  const handleConfirmReplacement = () => {
+    if (pendingAssignment && selectedDoctorId) {
+      assignDoctor(pendingAssignment.date, pendingAssignment.shiftId, selectedDoctorId);
+    }
+    setShowConfirmDialog(false);
+    setPendingAssignment(null);
+  };
+
+  const handleCancelReplacement = () => {
+    setShowConfirmDialog(false);
+    setPendingAssignment(null);
+  };
+
+  // Drag and drop handlers
+  const handleDragStart = (date: number, shiftId: string) => {
+    const doctor = getAssignedDoctor(date, shiftId);
+    if (doctor) {
+      setDraggedAssignment({ date, shiftId, doctor });
+    }
+  };
+
+  const handleDragEnd = () => {
+    setDraggedAssignment(null);
+  };
+
+  const handleDrop = (date: number, shiftId: string) => {
+    if (!draggedAssignment) return;
+    if (draggedAssignment.date === date && draggedAssignment.shiftId === shiftId) {
+      setDraggedAssignment(null);
+      return;
+    }
+
+    const targetDoctor = getAssignedDoctor(date, shiftId);
+    if (targetDoctor) {
+      setPendingSwap({
+        from: draggedAssignment,
+        to: { date, shiftId, doctor: targetDoctor },
+      });
+      setShowSwapDialog(true);
+    } else {
+      moveAssignment(
+        { date: draggedAssignment.date, shiftId: draggedAssignment.shiftId },
+        { date, shiftId }
+      );
+    }
+    setDraggedAssignment(null);
+  };
+
+  const handleConfirmSwap = () => {
+    if (pendingSwap) {
+      swapAssignments(
+        { date: pendingSwap.from.date, shiftId: pendingSwap.from.shiftId },
+        { date: pendingSwap.to.date, shiftId: pendingSwap.to.shiftId }
+      );
+    }
+    setShowSwapDialog(false);
+    setPendingSwap(null);
+  };
+
+  const handleCancelSwap = () => {
+    setShowSwapDialog(false);
+    setPendingSwap(null);
+  };
+
+  // Context menu (edit/delete/add) handlers
+  const handleEditAssignment = (date: number, shiftId: string) => {
+    const doctor = getAssignedDoctor(date, shiftId);
+    if (doctor) {
+      setAssignmentToEdit({ date, shiftId, doctor });
+      setShowEditAssignmentDialog(true);
+    }
+  };
+
+  const handleConfirmEditAssignment = (newDoctorId: string) => {
+    if (assignmentToEdit) {
+      editAssignment(assignmentToEdit.date, assignmentToEdit.shiftId, newDoctorId);
+    }
+    setShowEditAssignmentDialog(false);
+    setAssignmentToEdit(null);
+  };
+
+  const handleCancelEditAssignment = () => {
+    setShowEditAssignmentDialog(false);
+    setAssignmentToEdit(null);
+  };
+
+  const handleDeleteAssignment = (date: number, shiftId: string) => {
+    const doctor = getAssignedDoctor(date, shiftId);
+    if (doctor) {
+      setAssignmentToDelete({ date, shiftId, doctor });
+      setShowDeleteAssignmentDialog(true);
+    }
+  };
+
+  const handleConfirmDeleteAssignment = () => {
+    if (assignmentToDelete) {
+      removeAssignment(assignmentToDelete.date, assignmentToDelete.shiftId);
+    }
+    setShowDeleteAssignmentDialog(false);
+    setAssignmentToDelete(null);
+  };
+
+  const handleCancelDeleteAssignment = () => {
+    setShowDeleteAssignmentDialog(false);
+    setAssignmentToDelete(null);
+  };
+
+  const handleAddAssignment = (date: number, shiftId: string) => {
+    const existingDoctor = getAssignedDoctor(date, shiftId);
+    if (!existingDoctor && !selectedDoctorId) {
+      setAssignmentToAdd({ date, shiftId });
+      setShowAddAssignmentDialog(true);
+    }
+  };
+
+  const handleConfirmAddAssignment = (doctorId: string) => {
+    if (assignmentToAdd) {
+      addAssignment(assignmentToAdd.date, assignmentToAdd.shiftId, doctorId);
+    }
+    setShowAddAssignmentDialog(false);
+    setAssignmentToAdd(null);
+  };
+
+  const handleCancelAddAssignment = () => {
+    setShowAddAssignmentDialog(false);
+    setAssignmentToAdd(null);
+  };
+
+  if (loading) {
     return (
       <div className="p-6 max-w-full mx-auto">
         <div className="flex justify-center items-center h-64">
@@ -199,11 +327,11 @@ export function ShiftAssignmentTable() {
     );
   }
 
-  if (error || columnsError || assignmentsError) {
+  if (error) {
     return (
       <div className="p-6 max-w-full mx-auto">
         <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
-          <strong>Error:</strong> {error || columnsError || assignmentsError}
+          <strong>Error:</strong> {error}
         </div>
       </div>
     );
@@ -249,40 +377,37 @@ export function ShiftAssignmentTable() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {calendarDays.map((date) => {
-                    
-                    return (
-                      <TableRow key={date}>
-                        <TableCell 
-                          className={`sticky left-0 bg-white z-10 border-r-2 border-gray-200 font-medium text-center ${
-                            isHoliday(date) ? 'bg-red-50 text-red-700' : 
-                            isWeekendDay(date) ? 'bg-gray-50 text-gray-600' : ''
-                          }`}
-                        >
-                          <span className={`text-xs ${isHoliday(date) ? 'font-bold' : ''}`}>{date}</span>
-                        </TableCell>
-                        {shiftColumns.map((shift) => (
-                          <ShiftCell
-                            key={`${date}-${shift.id}`}
-                            date={date}
-                            shiftId={shift.id}
-                            shiftColor={shift.color}
-                            assignedDoctor={getAssignedDoctor(date, shift.id)}
-                            selectedDoctorId={selectedDoctorId}
-                            draggedAssignment={draggedAssignment}
-                            onCellClick={handleCellClick}
-                            onDragStart={handleDragStart}
-                            onDragEnd={handleDragEnd}
-                            onDrop={handleDrop}
-                            onEditAssignment={handleEditAssignment}
-                            onDeleteAssignment={handleDeleteAssignment}
-                            onAddAssignment={handleAddAssignment}
-                          />
-                        ))}
-                        <TableCell className="min-w-[100px] border-l border-gray-300"></TableCell>
-                      </TableRow>
-                    );
-                  })}
+                  {calendarDays.map((date) => (
+                    <TableRow key={date}>
+                      <TableCell
+                        className={`sticky left-0 bg-white z-10 border-r-2 border-gray-200 font-medium text-center ${
+                          isHoliday(date) ? 'bg-red-50 text-red-700' :
+                          isWeekendDay(date) ? 'bg-gray-50 text-gray-600' : ''
+                        }`}
+                      >
+                        <span className={`text-xs ${isHoliday(date) ? 'font-bold' : ''}`}>{date}</span>
+                      </TableCell>
+                      {shiftColumns.map((shift) => (
+                        <ShiftCell
+                          key={`${date}-${shift.id}`}
+                          date={date}
+                          shiftId={shift.id}
+                          shiftColor={shift.color}
+                          assignedDoctor={getAssignedDoctor(date, shift.id)}
+                          selectedDoctorId={selectedDoctorId}
+                          draggedAssignment={draggedAssignment}
+                          onCellClick={handleCellClick}
+                          onDragStart={handleDragStart}
+                          onDragEnd={handleDragEnd}
+                          onDrop={handleDrop}
+                          onEditAssignment={handleEditAssignment}
+                          onDeleteAssignment={handleDeleteAssignment}
+                          onAddAssignment={handleAddAssignment}
+                        />
+                      ))}
+                      <TableCell className="min-w-[100px] border-l border-gray-300"></TableCell>
+                    </TableRow>
+                  ))}
                 </TableBody>
               </Table>
             </div>
@@ -389,7 +514,7 @@ export function ShiftAssignmentTable() {
 
       <DeleteAssignmentDialog
         isOpen={showDeleteAssignmentDialog}
-        assignment={assignmentToEdit}
+        assignment={assignmentToDelete}
         onConfirm={handleConfirmDeleteAssignment}
         onCancel={handleCancelDeleteAssignment}
       />
